@@ -5,6 +5,7 @@ turbulent giggles can be found here
 
 Thirteen cameras. One long night.
 
-**[Play Night Shift](./night-shift.html)**
+https://longlong737.github.io/turbo-giggle.github.io/night-shift.html
+copy that into browser
 
 Play directly in your browser on desktop or mobile. No download or installation needed.
