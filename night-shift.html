@@ -70,6 +70,7 @@ body:not(.monitor-open) #app{display:none}
 #attack-view{position:fixed;inset:0;width:100%;height:100%;z-index:35;pointer-events:none;border-radius:0}#attack-view[hidden]{display:none}
 body.monitor-open #app{animation:monitor-enter .09s ease-out}@keyframes monitor-enter{from{opacity:.4}to{opacity:1}}
 #close-monitor{position:fixed;right:12px;top:12px;z-index:30;font-size:11px;padding:9px 14px}#close-monitor[hidden],#office-nav[hidden],#office-hint[hidden]{display:none}
+#scare-previews{position:fixed;right:12px;top:62px;z-index:30;background:#101510;border:1px solid #485346;padding:8px;font-size:11px;color:#b5c4b5}#scare-previews[hidden]{display:none}#scare-previews summary{cursor:pointer;letter-spacing:.06em}.preview-buttons{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.preview-buttons button{font-size:11px;padding:8px 10px}#scare-previews .preview-buttons{flex-direction:column}.ov .preview-buttons{max-width:460px}
 body>.ov{position:fixed;z-index:50;inset:0;background:rgba(3,5,4,.83);backdrop-filter:blur(4px);overflow:auto;box-sizing:border-box}body>.ov.hide{display:none}body>.ov p{color:#b9c8b8}body>.ov .tag{margin-bottom:4px}
 .webgl-error{position:absolute;top:35%;padding:30px;color:#cbd5c7}
 @media(max-width:600px){#office-hud{left:12px;right:12px;font-size:10px;letter-spacing:.04em}#office-hud span:nth-child(2){display:none}#office-hint{font-size:10px;bottom:120px}#close-monitor{top:6px;right:6px;padding:6px 8px}body>.ov{padding:18px}body>.ov h1{font-size:26px}}
@@ -82,6 +83,7 @@ body>.ov{position:fixed;z-index:50;inset:0;background:rgba(3,5,4,.83);backdrop-f
 <nav id="office-nav" aria-label="Office controls"><button id="look-left">← Kids’ room</button><button id="look-front">Staircase</button><button id="look-right">Adult room →</button><button id="open-laptop">Laptop [E]</button><button id="office-flash">Doorway light [F]</button></nav>
 <canvas id="attack-view" width="640" height="360" hidden aria-hidden="true"></canvas>
 <button id="close-monitor" hidden>Laptop [E] · Close</button>
+<details id="scare-previews" hidden><summary>Jumpscare previews</summary><div class="preview-buttons"><button data-scare="fig">Force Figure</button><button data-scare="dw">Force Vent Dweller</button><button data-scare="side">Force Room Stalker</button></div></details>
 <div id="app">
  <div class="top"><span id="clock">12:00 AM</span><span id="mist">Mistakes 0/5</span><span id="dmode"></span></div>
  <div class="feed"><canvas id="cv" width="640" height="360"></canvas><div class="scan"></div></div>
@@ -129,8 +131,8 @@ const TYPES=['door','light','obj','paint'],LABEL={door:'Door',light:'Lights',obj
 let G=null,last=0;
 const $=id=>document.getElementById(id),rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.floor(Math.random()*a.length)];
 
-function init(){G={t:0,cam:0,S:CAMS.map(()=>({door:0,light:0,obj:0,paint:0})),fig:null,mist:0,repels:0,nextDw:70,ct:0,m:MODES[DIFF].m,nextSpawn:12,nextFig:28,pen:[],over:false,scare:0,stat:.3};
- $('ov').classList.add('hide');setCam(0);ui();Office.reset();say('');}
+function init(){G={t:0,cam:0,S:CAMS.map(()=>({door:0,light:0,obj:0,paint:0})),fig:null,side:null,mist:0,repels:0,nextDw:70,nextSide:rnd(68,85),ct:0,m:MODES[DIFF].m,nextSpawn:12,nextFig:28,pen:[],over:false,scare:0,stat:.3};
+ $('ov').classList.add('hide');$('scare-previews').hidden=false;$('scare-previews').open=false;setCam(0);ui();Office.reset();say('');}
 function total(){let n=G.pen.length+(G.fig?1:0);G.S.forEach(s=>TYPES.forEach(k=>{if(s[k])n++}));return n}
 function setCam(i){G.cam=i;G.stat=.35;G.cut=0;document.querySelectorAll('#cams button,#vents button').forEach(b=>b.classList.toggle('on',+b.dataset.i===i))}
 function say(t){$('msg').textContent=t}
@@ -147,36 +149,48 @@ const rb=$('rep');Object.keys(LABEL).forEach(k=>{const b=document.createElement(
 $('flash').onclick=flash;
 addEventListener('keydown',e=>{if(e.repeat)return;if(e.key==='f'||e.key==='F'){if(Office.monitor)flash();else Office.flash();return}const k=e.key==='0'?10:+e.key,i=CAMS.findIndex(c=>c.id===k);if(G&&!G.over&&!G.chk&&Office.monitor&&i>=0)setCam(i)});
 
-function report(k){if(!G||G.over||G.chk)return;G.chk={k,cam:G.cam,t:rnd(1,2)};say('')}
-function resolve(){const {k,cam}=G.chk;G.chk=null;G.stat=.2;
- if(k==='fig'){if(G.fig&&G.fig.cam===cam){G.fig=null;G.cut=.5;G.nextFig=G.ct+rnd(20,35);say('SIGNAL RESTORED');return}}
+function report(k){if(!G||G.over||G.chk)return;G.chk={k,cam:G.cam,t:rnd(1,2),fig:k==='fig'&&G.fig&&G.fig.cam===G.cam?G.fig:null};say('')}
+function resolve(){const {k,cam,fig}=G.chk;G.chk=null;G.stat=.2;
+ if(k==='fig'){if(fig&&G.fig===fig&&fig.cam===cam){G.fig=null;G.cut=.5;G.nextFig=G.ct+rnd(20,35);say('SIGNAL RESTORED');return}}
  else{const s=G.S[cam],t=s[k]?k:TYPES.find(x=>s[x]&&!IMG[cam][x]);if(t){s[t]=0;say('SIGNAL RESTORED');return}}
  G.mist++;say('REPORT REJECTED');if(G.mist>=5){G.over=true;G.scare=1.2;G.why='mist'}}
 
 function spawn(){const o=[];G.S.forEach((s,i)=>TYPES.forEach(k=>{if(i!==G.cam&&!CAMS[i].vent&&IMG[i][k]&&!s[k]&&!(IMG[i][k]&&(TYPES.some(t=>s[t]&&IMG[i][t])||(G.fig&&G.fig.cam===i))))o.push([i,k])}));if(!o.length)return;
  const [i,k]=pick(o);G.S[i][k]=k==='obj'?pick([1,2]):1;G.S[i].pos=[rnd(90,550),rnd(90,270)]}
 
+function kill(kind){if(G.over)return;G.over=true;G.win=false;G.why=kind;G.chk=null;G.scare=G.tot=kind==='side'?1.45:kind==='dw'?1.20:SCARE_T+.15;}
+function sideEnter(door=pick([-1,1])){G.side={door,stage:0,t:0,dwell:rnd(7,10),lit:0};}
+function updateSide(dt){const s=G.side;if(!s)return;
+ if(s.stage===3){s.t+=dt;if(Office.camerasDown||s.t>=15)kill('side');return;}
+ const lit=Office.lightOn&&((Office.perspective>0&&s.door===-1)||(Office.perspective<0&&s.door===1));s.lit=lit?s.lit+dt:Math.max(0,s.lit-dt*2);
+ const lightTime=[.4,.6,.9,1.25][DIFF];if(s.lit>=lightTime){s.lit-=lightTime;s.stage--;s.t=0;s.dwell=rnd(7,10);if(s.stage<0){G.side=null;G.nextSide=G.ct+rnd(25,40);}return;}
+ s.t+=dt*G.m;if(s.t>=s.dwell){s.stage++;s.t=0;s.dwell=rnd(7,10);if(s.stage===3&&Office.camerasDown)kill('side');}}
+function previewButtons(){return '<div class="preview-buttons"><button data-scare="fig">Force Figure</button><button data-scare="dw">Force Vent Dweller</button><button data-scare="side">Force Room Stalker</button></div>';}
+function forceScare(kind){if(!['fig','dw','side'].includes(kind))return;init();if(kind==='side'){sideEnter();G.side.stage=3;}kill(kind);}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-scare]');if(b)forceScare(b.dataset.scare);});
+
 function update(dt){if(G.over){G.scare-=dt;if(G.scare<=0&&$('ov').classList.contains('hide'))endScreen();return}
  G.t+=dt;G.ct+=dt*G.m;G.stat=Math.max(0,G.stat-dt);G.pen=G.pen.filter(e=>e>G.t);G.fl=Math.max(0,(G.fl||0)-dt);G.flcd=Math.max(0,(G.flcd||0)-dt);if(G.chk){G.chk.t-=dt;if(G.chk.t<=0)resolve()}
- const hour=Math.floor(G.t/40);
+ if(G.over)return;const hour=Math.floor(G.t/40);
  if(G.t>=NIGHT){G.over=true;G.win=true;G.scare=0;return}
  if(G.ct>=G.nextSpawn){spawn();G.nextSpawn=G.ct+Math.max(8,15-hour*1.1)+rnd(0,3)}
  if(!G.fig&&G.ct>=G.nextFig&&hour>=1&&ci(10)!==G.cam)figEnter(ci(10));
  if(!G.dw&&G.ct>=G.nextDw&&hour>=1)dwEnter(0);
- if(G.dw){const d=G.dw;d.t+=dt*G.m;if(d.t>=d.dwell){if(d.stage>=VP.length-1){G.over=true;G.scare=G.tot=1.20;G.why='dw'}else dwMove(d.stage+1)}}
- if(G.fig){const f=G.fig;f.t+=dt*G.m;
-  if(f.t>=f.dwell){const o=NEXT[CAMS[f.cam].id];if(!o.length){G.over=true;G.scare=G.tot=SCARE_T+.15;G.why='fig'}else{const ok=o.map(ci).filter(c=>c!==G.cam);if(ok.length)figEnter(pick(ok))}}}
+ if(!G.side&&G.ct>=G.nextSide&&hour>=1)sideEnter();updateSide(dt);if(G.over)return;
+ if(G.dw){const d=G.dw;d.t+=dt*G.m;if(d.t>=d.dwell){if(d.stage>=VP.length-1)kill('dw');else dwMove(d.stage+1)}}
+ if(G.fig&&!G.over&&!(G.chk&&G.chk.fig===G.fig)){const f=G.fig;f.t+=dt*G.m;
+  if(f.t>=f.dwell){const o=NEXT[CAMS[f.cam].id];if(!o.length)kill('fig');else{const ok=o.map(ci).filter(c=>c!==G.cam);if(ok.length)figEnter(pick(ok))}}}
  if(total()>=LIMIT&&!G.over){G.over=true;G.scare=1.2;G.why='sig'}
  ui()}
 function ui(){const h=Math.floor(G.t/40);$('mist').textContent='Mistakes '+G.mist+'/5';$('dmode').textContent=MODES[DIFF].n;
  $('clock').textContent=(h===0?12:h)+':'+String(Math.floor((G.t%40)/40*60)).padStart(2,'0')+' AM'}
-function endScreen(){Office.finishAttack();const o=$('ov');o.classList.remove('hide');
- const title=G.win?'6:00 AM':G.why==='fig'?'It found you':G.why==='dw'?'It crawled out':G.why==='mist'?'Wrong call':'Signal lost';
- o.innerHTML='<h1>'+title+'</h1><button id="go">'+(G.win?'Work another night':'Try again')+'</button><button id="ttl">Title screen</button>';
+function endScreen(){Office.finishAttack();$('scare-previews').hidden=true;const o=$('ov');o.classList.remove('hide');
+ const title=G.win?'6:00 AM':G.why==='fig'?'It found you':G.why==='dw'?'It crawled out':G.why==='side'?'The smile came closer':G.why==='mist'?'Wrong call':'Signal lost';
+ o.innerHTML='<h1>'+title+'</h1><button id="go">'+(G.win?'Work another night':'Try again')+'</button><button id="ttl">Title screen</button><p>Jumpscare previews</p>'+previewButtons();
  $('go').onclick=init;$('ttl').onclick=showTitle}
 
-function showTitle(){G=null;if(typeof Office!=='undefined')Office.setMonitor(false);const o=$('ov');o.classList.remove('hide');
- o.innerHTML='<div class="tag">Security monitor station</div><h1>Night Shift</h1><p>12 AM — 6 AM</p><p>A / D · Look &nbsp; E · Laptop &nbsp; F · Flashlight<br>← / → · View &nbsp; 1–0 · Camera</p><p>Difficulty</p><div class="diff"></div><button id="go">Start shift</button>' ;const dv=o.querySelector('.diff');MODES.forEach((d,i)=>{const b=document.createElement('button');b.textContent=d.n;b.className=i===DIFF?'on':'';b.onclick=()=>{DIFF=i;[...dv.children].forEach((x,j)=>x.classList.toggle('on',j===i))};dv.appendChild(b)});$('go').onclick=init}
+function showTitle(){G=null;$('scare-previews').hidden=true;if(typeof Office!=='undefined')Office.reset();const o=$('ov');o.classList.remove('hide');
+ o.innerHTML='<div class="tag">Security monitor station</div><h1>Night Shift</h1><p>12 AM — 6 AM</p><p>A / D · Look &nbsp; E · Laptop &nbsp; F · Flashlight<br>← / → · View &nbsp; 1–0 · Camera</p><p>Difficulty</p><div class="diff"></div><button id="go">Start shift</button><p>Jumpscare previews</p>'+previewButtons();const dv=o.querySelector('.diff');MODES.forEach((d,i)=>{const b=document.createElement('button');b.textContent=d.n;b.className=i===DIFF?'on':'';b.onclick=()=>{DIFF=i;[...dv.children].forEach((x,j)=>x.classList.toggle('on',j===i))};dv.appendChild(b)});$('go').onclick=init}
 
 
 function person(x,s,a){ctx.save();ctx.globalAlpha=a;ctx.fillStyle='#000';ctx.translate(x,250);ctx.scale(s,s);
@@ -237,8 +251,8 @@ const attackView=$('attack-view'),attackCtx=attackView.getContext('2d');
 function presentAttack(){const elapsed=G.tot-G.scare;attackView.hidden=false;attackCtx.clearRect(0,0,attackView.width,attackView.height);if(elapsed<.15)return;attackCtx.save();attackCtx.globalAlpha=Math.min(1,(elapsed-.15)/.06);const ratio=Math.max(attackView.width/W,attackView.height/H),sw=attackView.width/ratio,sh=attackView.height/ratio;attackCtx.drawImage(cv,(W-sw)/2,(H-sh)/2,sw,sh,0,0,attackView.width,attackView.height);attackCtx.restore();}
 function frame(now){requestAnimationFrame(frame);const dt=Math.min(.1,(now-last)/1000||0);last=now;
  if(!G){ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);noise(300);return}
- update(dt);if(G.over&&G.scare>0){if(G.why==='dw'||G.why==='fig')Office.startAttack(G.why);else if(!Office.monitor)Office.setMonitor(true);}
- if(G.over&&G.scare>0){if(G.why==='dw'){drawDw();presentAttack();return}if(G.why==='fig'&&JS.every(i=>i.complete&&i.naturalWidth)){drawScare();presentAttack();return}ctx.fillStyle=Math.random()<.3?'#300':'#000';ctx.fillRect(0,0,W,H);if(G.why==='fig'){person(320,3.2+Math.random()*.3,1);presentAttack();}noise(900);return}
+ update(dt);if(G.over&&G.scare>0){if(['dw','fig','side'].includes(G.why))Office.startAttack(G.why);else if(!Office.monitor)Office.setMonitor(true);}
+ if(G.over&&G.scare>0){if(G.why==='side'){Office.animateSideAttack();return;}if(G.why==='dw'){drawDw();presentAttack();return}if(G.why==='fig'&&JS.every(i=>i.complete&&i.naturalWidth)){drawScare();presentAttack();return}ctx.fillStyle=Math.random()<.3?'#300':'#000';ctx.fillRect(0,0,W,H);if(G.why==='fig'){person(320,3.2+Math.random()*.3,1);presentAttack();}noise(900);return}
  if(G.over){ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);return}
  if(G.chk){drawChk();return}
  if(G.cut>0){G.cut-=dt;drawCut();if(G.cut<=0)G.stat=.25;return}
@@ -264,7 +278,7 @@ const Office=(()=>{
  scene.background=new THREE.Color(0x070909);scene.fog=new THREE.FogExp2(0x080a0a,.046);
  const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.08,40);camera.position.set(0,1.42,2.5);camera.rotation.order='YXZ';
  let renderer;
- try{renderer=new THREE.WebGLRenderer({antialias:true});}catch(e){root.innerHTML='<p class="webgl-error">This office needs WebGL. Enable hardware acceleration in your browser, then reload.</p>';return {ready:false,monitor:false,startAttack(){},finishAttack(){},setMonitor(){},reset(){},flash(){}};}
+ try{renderer=new THREE.WebGLRenderer({antialias:true});}catch(e){root.innerHTML='<p class="webgl-error">This office needs WebGL. Enable hardware acceleration in your browser, then reload.</p>';return {ready:false,monitor:false,camerasDown:true,startAttack(){},animateSideAttack(){},finishAttack(){},setMonitor(){},reset(){},flash(){}};}
  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;root.prepend(renderer.domElement);
  const mat=(color,roughness=.9)=>new THREE.MeshStandardMaterial({color,roughness});
  const wall=mat(0x777970),trim=mat(0xa4a69c),wood=mat(0x332c23),dark=mat(0x131717),metal=mat(0x484e4c,.55);
@@ -330,6 +344,23 @@ const Office=(()=>{
    box(.85,.88,.06,4.95,1.72,-3.43,wood);box(.75,.77,.065,4.95,1.72,-3.395,mat(0x4c5756,.25));box(.07,.15,.07,7.78,.89,-3.23,mat(0x67736d));
   }
  }
+ // The room stalker is a continuous 3D silhouette; its smile is the only bright feature.
+ const stalker=new THREE.Group();stalker.name='room-stalker';stalker.visible=false;scene.add(stalker);
+ const skin=new THREE.MeshStandardMaterial({color:0x030404,roughness:1});
+ const upper=new THREE.Group();upper.position.y=1.2;stalker.add(upper);
+ function ellipsoid(x,y,z,sx,sy,sz,parent=upper){const mesh=new THREE.Mesh(new THREE.SphereGeometry(1,24,20),skin);mesh.position.set(x,y,z);mesh.scale.set(sx,sy,sz);mesh.castShadow=true;parent.add(mesh);return mesh;}
+ function bone(a,b,r,parent){const p=new THREE.Vector3(...a),q=new THREE.Vector3(...b),mesh=new THREE.Mesh(new THREE.CapsuleGeometry(r,p.distanceTo(q),6,16),skin);mesh.position.copy(p).add(q).multiplyScalar(.5);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),q.sub(p).normalize());mesh.castShadow=true;parent.add(mesh);return mesh;}
+ ellipsoid(0,.54,0,.14,.61,.085);bone([0,1.00,0],[0,1.18,0],.043,upper);
+ const stalkerHead=new THREE.Group();stalkerHead.position.set(0,1.25,.012);upper.add(stalkerHead);ellipsoid(0,0,0,.165,.245,.13,stalkerHead);
+ const grin=new THREE.Shape();grin.moveTo(-.145,.015);grin.quadraticCurveTo(0,-.115,.145,.015);grin.lineTo(.139,-.027);grin.quadraticCurveTo(0,-.165,-.139,-.027);grin.closePath();
+ const smile=new THREE.Mesh(new THREE.ShapeGeometry(grin,32),new THREE.MeshBasicMaterial({color:0xf3f5df,side:THREE.DoubleSide}));smile.position.set(0,-.025,.133);stalkerHead.add(smile);
+ const arms=[];for(const sign of [-1,1]){const arm=new THREE.Group();arm.position.set(sign*.16,.92,0);upper.add(arm);bone([0,0,0],[sign*.10,-.65,.035],.033,arm);bone([sign*.10,-.65,.035],[sign*.09,-1.43,.085],.025,arm);ellipsoid(sign*.09,-1.48,.085,.044,.10,.032,arm);for(let k=0;k<4;k++)bone([sign*.09+(k-1.5)*.017,-1.52,.09],[sign*.09+(k-1.5)*.024,-1.73-k*.018,.12],.008,arm);arms.push(arm);}
+ const legs=[];for(const sign of [-1,1]){const leg=new THREE.Group();leg.position.set(sign*.075,1.18,0);stalker.add(leg);bone([0,0,0],[sign*.035,-.59,.02],.043,leg);bone([sign*.035,-.59,.02],[sign*.047,-1.14,.08],.028,leg);ellipsoid(sign*.047,-1.15,.14,.048,.042,.12,leg);legs.push(leg);}
+ const doorwayPosition=new THREE.Vector3(),rushTarget=new THREE.Vector3(),headPosition=new THREE.Vector3();
+ function poseStalker(){if(!G||!G.side){stalker.visible=false;return;}const s=G.side;stalker.visible=true;const stage=Math.min(2,s.stage);
+  stalker.position.set(s.door*[4.13,4.05,3.89][stage],0,[-.27,-.62,-1.15][stage]);stalker.rotation.set(0,Math.atan2(-stalker.position.x,2.5-stalker.position.z),0);
+  upper.position.set(0,1.2,0);upper.rotation.set([-.16,-.08,0][stage],0,s.door*[.30,.18,0][stage]);stalkerHead.rotation.set(0,0,-s.door*[.15,.08,0][stage]);
+  arms.forEach((arm,i)=>arm.rotation.set(stage<2?-.15:0,0,(i===0?1:-1)*(stage===0?.13:stage===1?.20:.09)));legs.forEach(leg=>leg.rotation.set(0,0,0));stalker.updateMatrixWorld(true);}
  function picture(x,y,z,rotation,image){const group=new THREE.Group();group.position.set(x,y,z);group.rotation.y=rotation;scene.add(group);box(.69,.85,.065,0,0,0,wood,group);box(.6,.76,.07,0,0,.015,trim,group);const texture=new THREE.Texture(image);texture.colorSpace=THREE.SRGBColorSpace;if(image.complete)texture.needsUpdate=true;else image.addEventListener('load',()=>texture.needsUpdate=true);box(.48,.64,.075,0,0,.03,new THREE.MeshStandardMaterial({map:texture,color:0x999999}),group);}
  picture(2.05,1.9,-3.35,0,IMG[ci(3)].base);picture(2.95,1.9,-3.35,0,IMG[ci(6)].base);picture(-3.85,2.1,.55,Math.PI/2,IMG[ci(5)].base);
  // Wooden table to the left. Laptop faces the player's fixed seat.
@@ -370,10 +401,17 @@ const Office=(()=>{
  function monitorUI(open){monitor=!!open;document.body.classList.toggle('monitor-open',monitor);document.getElementById('close-monitor').hidden=!monitor&&zoom===0;document.getElementById('office-nav').hidden=monitor||zoom>0;document.getElementById('office-hint').hidden=monitor||zoom>0;if(open){fit();document.getElementById('close-monitor').focus();}}
  // Immediate changes are reserved for title/reset and a forced jumpscare.
  function setMonitor(open){attackOrigin=null;attackView.hidden=true;signalUntil=0;zoom=zoomTarget=open?1:0;drag=null;laptopGlow.intensity=open?2.4:0;if(!open){paintLaptop();camera.position.copy(seatPosition);camera.rotation.set(pitch,yaw,0,'YXZ');camera.fov=baseFov;camera.updateProjectionMatrix();}if(open)doorLight=false;monitorUI(open);if(!open&&G&&!G.over)document.getElementById('look-front').focus();}
- function startAttack(kind){if(attackOrigin===kind)return;setMonitor(false);attackOrigin=kind;doorLight=false;drag=null;camera.position.copy(seatPosition);camera.fov=kind==='dw'?85:baseFov;camera.lookAt(kind==='dw'?new THREE.Vector3(0,1.15,3.4):new THREE.Vector3(0,-.25,-4.4));camera.updateProjectionMatrix();attackView.hidden=false;attackCtx.clearRect(0,0,attackView.width,attackView.height);document.getElementById('office-nav').hidden=true;document.getElementById('office-hint').hidden=true;document.getElementById('close-monitor').hidden=true;renderer.render(scene,camera);}
+ function startAttack(kind){if(attackOrigin===kind)return;setMonitor(false);attackOrigin=kind;doorLight=false;beam.intensity=0;drag=null;camera.position.copy(seatPosition);camera.fov=kind==='dw'?85:baseFov;
+  if(kind==='side'){poseStalker();doorwayPosition.copy(stalker.position);stalkerHead.getWorldPosition(headPosition);camera.lookAt(headPosition);rushTarget.copy(seatPosition).addScaledVector(stalker.position.clone().sub(seatPosition).setY(0).normalize(),.30);rushTarget.y=-.65;}
+  else camera.lookAt(kind==='dw'?new THREE.Vector3(0,1.15,3.4):new THREE.Vector3(0,-.25,-4.4));
+  camera.updateProjectionMatrix();attackView.hidden=false;attackCtx.clearRect(0,0,attackView.width,attackView.height);$('scare-previews').hidden=true;document.getElementById('office-nav').hidden=true;document.getElementById('office-hint').hidden=true;document.getElementById('close-monitor').hidden=true;renderer.render(scene,camera);}
+ function animateSideAttack(){const t=G.tot-G.scare,p=Math.max(0,Math.min(1,(t-.15)/.65)),rush=p*p*(3-2*p);stalker.position.lerpVectors(doorwayPosition,rushTarget,rush);upper.rotation.set(-.10*p,0,0);stalkerHead.rotation.set(0,0,Math.sin(t*35)*p*.035);
+  arms.forEach((arm,i)=>arm.rotation.set(-.7*p+Math.sin(t*24+i*Math.PI)*p*.55,0,(i===0?1:-1)*(.12+p*.32)));legs.forEach((leg,i)=>leg.rotation.x=Math.sin(t*26+i*Math.PI)*Math.sin(p*Math.PI)*.7);
+  stalker.updateMatrixWorld(true);stalkerHead.getWorldPosition(headPosition);camera.position.copy(seatPosition);camera.lookAt(headPosition);camera.rotateZ(Math.sin(t*45)*Math.max(0,p-.75)*.13);renderer.render(scene,camera);
+  attackCtx.clearRect(0,0,attackView.width,attackView.height);if(t>.87){attackCtx.fillStyle='rgba(0,0,0,'+Math.min(1,(t-.87)/.11)+')';attackCtx.fillRect(0,0,attackView.width,attackView.height);}}
  function finishAttack(){setMonitor(false);}
  function beginZoom(open){signalUntil=performance.now()+90;doorLight=false;drag=null;if(open&&zoom===0){seatRotation.copy(camera.quaternion);}zoomTarget=open?1:0;monitorUI(false);document.getElementById('close-monitor').hidden=false;document.getElementById('office-nav').hidden=true;document.getElementById('office-hint').hidden=true;}
- function reset(){doorLight=false;turn(0);yaw=0;pitch=targetPitch=-.18;setMonitor(false);}
+ function reset(){doorLight=false;stalker.visible=false;turn(0);yaw=0;pitch=targetPitch=-.18;setMonitor(false);}
  function officeFlash(){if(!active())return;if(Math.abs(targetYaw)<.4){doorLight=false;return;}doorLight=!doorLight;}
  const laptopPosition=new THREE.Vector3(),lookDirection=new THREE.Vector3(),toLaptop=new THREE.Vector3();
  function lookingAtLaptop(){laptop.getWorldPosition(laptopPosition);camera.getWorldDirection(lookDirection);toLaptop.copy(laptopPosition).sub(camera.position).normalize();return lookDirection.dot(toLaptop)>=Math.cos(Math.PI/6);}
@@ -392,7 +430,7 @@ const Office=(()=>{
   if(zoom!==zoomTarget){const step=Math.min(.25,elapsed)/zoomDuration;zoom=zoomTarget>zoom?Math.min(zoomTarget,zoom+step):Math.max(zoomTarget,zoom-step);if(zoom===zoomTarget){signalUntil=t+80;if(zoom===1&&G)G.cut=Math.max(G.cut||0,.12);monitorUI(zoom===1);if(zoom===0&&G&&!G.over)document.getElementById('open-laptop').focus();}}
   if(zoom===0&&zoomTarget===0){const k=1-Math.exp(-dt*8);yaw+=(targetYaw-yaw)*k;pitch+=(targetPitch-pitch)*k;camera.position.copy(seatPosition);camera.rotation.set(pitch,yaw,0,'YXZ');seatRotation.copy(camera.quaternion);camera.fov=baseFov;}
   else{screen.getWorldPosition(screenPosition);screen.getWorldQuaternion(screenRotation);screenNormal.set(0,0,1).applyQuaternion(screenRotation);const distance=.50/(2*Math.tan(THREE.MathUtils.degToRad(zoomFov/2)))*1.03;zoomPosition.copy(screenPosition).addScaledVector(screenNormal,distance);const eased=zoom*zoom*(3-2*zoom);camera.position.lerpVectors(seatPosition,zoomPosition,eased);camera.quaternion.slerpQuaternions(seatRotation,screenRotation,eased);camera.fov=THREE.MathUtils.lerp(baseFov,zoomFov,eased);}
-  camera.updateProjectionMatrix();if(!monitor||zoom!==zoomTarget)paintLaptop();
+  camera.updateProjectionMatrix();poseStalker();if(!monitor||zoom!==zoomTarget)paintLaptop();
   const powered=monitor||zoom>0||zoomTarget>0;laptopGlow.intensity=powered?2.4:0;
   const interference=powered&&(zoom!==zoomTarget||t<signalUntil);
   if(interference){const bytes=signalPixels.data;for(let j=0;j<bytes.length;j+=4){const v=Math.random()*225|0;bytes[j]=bytes[j+1]=bytes[j+2]=v;bytes[j+3]=255;}signalCtx.putImageData(signalPixels,0,0);signalCtx.fillStyle='#010302';for(let k=0;k<4;k++)signalCtx.fillRect(0,(t*.32+k*41)%180,320,2+k);lc.save();lc.globalAlpha=1;lc.globalCompositeOperation='copy';lc.drawImage(signalCanvas,0,0,laptopCanvas.width,laptopCanvas.height);lc.restore();screenTexture.needsUpdate=true;}
@@ -400,7 +438,7 @@ if(Math.abs(targetYaw)<.4||!G||G.over||monitor||zoom>0)doorLight=false;beam.targ
  document.getElementById('office-clock').textContent=document.getElementById('clock').textContent;document.getElementById('office-mist').textContent=document.getElementById('mist').textContent;
  const laptopButton=document.getElementById('open-laptop');laptopButton.disabled=zoom>0||!lookingAtLaptop();laptopButton.title='Laptop [E]';document.getElementById('office-flash').disabled=Math.abs(targetYaw)<.4;document.getElementById('office-flash').classList.toggle('on',doorLight);document.getElementById('office-flash').setAttribute('aria-pressed',String(doorLight));for(const [id,value] of [['look-left',.85],['look-front',0],['look-right',-.85]])document.getElementById(id).classList.toggle('on',Math.abs(targetYaw-value)<.2);
  if(!monitor||zoom!==zoomTarget)renderer.render(scene,camera);}
- requestAnimationFrame(render);return {ready:true,get monitor(){return monitor;},get lightOn(){return doorLight;},get perspective(){return targetYaw;},get zoomProgress(){return zoom;},get viewPosition(){return camera.position.toArray();},get attackOrigin(){return attackOrigin;},get viewDirection(){return camera.getWorldDirection(new THREE.Vector3()).toArray();},get screenStatic(){return (monitor||zoom>0||zoomTarget>0)&&(zoom!==zoomTarget||performance.now()<signalUntil);},lookingAtLaptop,startAttack,finishAttack,setMonitor,reset,flash:officeFlash};
+ requestAnimationFrame(render);return {ready:true,get monitor(){return monitor;},get camerasDown(){return !monitor&&zoomTarget===0;},get lightOn(){return doorLight;},get perspective(){return targetYaw;},get zoomProgress(){return zoom;},get viewPosition(){return camera.position.toArray();},get attackOrigin(){return attackOrigin;},get viewDirection(){return camera.getWorldDirection(new THREE.Vector3()).toArray();},get screenStatic(){return (monitor||zoom>0||zoomTarget>0)&&(zoom!==zoomTarget||performance.now()<signalUntil);},lookingAtLaptop,startAttack,animateSideAttack,finishAttack,setMonitor,reset,flash:officeFlash};
 })();
 
 showTitle();
