@@ -61,6 +61,7 @@ html,body{height:100%;overflow:hidden}
 #office::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 40%,rgba(0,0,0,.6));}
 #office-hud{position:fixed;left:24px;right:24px;top:max(20px,env(safe-area-inset-top));display:flex;justify-content:space-between;font-size:12px;letter-spacing:.15em;color:#c7cdc2;pointer-events:none;z-index:2;text-shadow:0 2px 4px #000}
 #office-hud span:nth-child(2){opacity:.65}
+#office-hud[hidden]{display:none}
 #office-hint{position:fixed;left:20px;right:20px;bottom:116px;text-align:center;z-index:2;color:#929b92;font-size:11px;letter-spacing:.08em;pointer-events:none}
 #office-msg{display:block;color:#c8d2c3;margin-bottom:8px;letter-spacing:0}
 #office-nav{position:fixed;bottom:max(20px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(620px,calc(100% - 24px));z-index:4;display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
@@ -83,7 +84,7 @@ body>.ov{position:fixed;z-index:50;inset:0;background:rgba(3,5,4,.83);backdrop-f
 <nav id="office-nav" aria-label="Office controls"><button id="look-left">← Kids’ room</button><button id="look-front">Staircase</button><button id="look-right">Adult room →</button><button id="open-laptop">Laptop [E]</button><button id="office-flash">Doorway light [F]</button></nav>
 <canvas id="attack-view" width="640" height="360" hidden aria-hidden="true"></canvas>
 <button id="close-monitor" hidden>Laptop [E] · Close</button>
-<details id="scare-previews" hidden><summary>Jumpscare previews</summary><div class="preview-buttons"><button data-scare="fig">Force Figure</button><button data-scare="dw">Force Vent Dweller</button><button data-scare="side">Force Room Stalker</button></div></details>
+<details id="scare-previews" hidden><summary>Jumpscare previews</summary><div class="preview-buttons"><button data-scare="fig">Force Figure</button><button data-scare="dw">Force the Sly</button><button data-scare="side">Force the Gangling</button></div></details>
 <div id="app">
  <div class="top"><span id="clock">12:00 AM</span><span id="mist">Mistakes 0/5</span><span id="dmode"></span></div>
  <div class="feed"><canvas id="cv" width="640" height="360"></canvas><div class="scan"></div></div>
@@ -166,7 +167,7 @@ function updateSide(dt){const s=G.side;if(!s)return;
  const lit=Office.lightOn&&((Office.perspective>0&&s.door===-1)||(Office.perspective<0&&s.door===1));s.lit=lit?s.lit+dt:Math.max(0,s.lit-dt*2);
  const lightTime=[.4,.6,.9,1.25][DIFF];if(s.lit>=lightTime){s.lit-=lightTime;s.stage--;s.t=0;s.dwell=rnd(7,10);if(s.stage<0){G.side=null;G.nextSide=G.ct+rnd(25,40);}return;}
  s.t+=dt*G.m;if(s.t>=s.dwell){s.stage++;s.t=0;s.dwell=rnd(7,10);if(s.stage===3&&Office.camerasDown)kill('side');}}
-function previewButtons(){return '<div class="preview-buttons"><button data-scare="fig">Force Figure</button><button data-scare="dw">Force Vent Dweller</button><button data-scare="side">Force Room Stalker</button></div>';}
+function previewButtons(){return '<div class="preview-buttons"><button data-scare="fig">Force Figure</button><button data-scare="dw">Force the Sly</button><button data-scare="side">Force the Gangling</button></div>';}
 function forceScare(kind){if(!['fig','dw','side'].includes(kind))return;init();if(kind==='side'){sideEnter();G.side.stage=3;}kill(kind);}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-scare]');if(b)forceScare(b.dataset.scare);});
 
@@ -186,7 +187,7 @@ function update(dt){if(G.over){G.scare-=dt;if(G.scare<=0&&$('ov').classList.cont
 function ui(){const h=Math.floor(G.t/40);$('mist').textContent='Mistakes '+G.mist+'/5';$('dmode').textContent=MODES[DIFF].n;
  $('clock').textContent=(h===0?12:h)+':'+String(Math.floor((G.t%40)/40*60)).padStart(2,'0')+' AM'}
 function endScreen(){Office.finishAttack();$('scare-previews').hidden=true;const o=$('ov');o.classList.remove('hide');
- const title=G.win?'6:00 AM':G.why==='fig'?'It found you':G.why==='dw'?'It crawled out':G.why==='side'?'The smile came closer':G.why==='mist'?'Wrong call':'Signal lost';
+ const title=G.win?'6:00 AM':G.why==='fig'?'It found you':G.why==='dw'?'The Sly crawled out':G.why==='side'?'The Gangling found you':G.why==='mist'?'Wrong call':'Signal lost';
  o.innerHTML='<h1>'+title+'</h1><button id="go">'+(G.win?'Work another night':'Try again')+'</button><button id="ttl">Title screen</button><p>Jumpscare previews</p>'+previewButtons();
  $('go').onclick=init;$('ttl').onclick=showTitle}
 
@@ -322,7 +323,7 @@ const Office=(()=>{
    box(1.55,1.65,.06,0,0,0,trim,window);box(1.38,1.48,.08,0,0,.02,new THREE.MeshBasicMaterial({color:0x080f14}),window);
   box(.035,1.5,.09,0,0,.055,trim,window);box(1.4,.035,.09,0,0,.055,trim,window);
   for(const dx of [-.94,.94])box(.29,1.95,.12,dx,-.11,.1,side<0?blue:sage,window);
-   const moon=new THREE.PointLight(0x798d9d,.30,6,2);moon.position.set(side*8.1,2,-3.3);scene.add(moon);
+   const moon=new THREE.PointLight(0x798d9d,.06,5,2);moon.position.set(side*8.1,2,-3.3);scene.add(moon);
   // A rug, dresser, writing table and bedside cabinet in each room.
   box(2.75,.02,2.1,side*6.3,.012,-1.8,mat(side<0?0x485765:0x655f50));
   drawerCabinet(side*4.95,-3.55,1.25,1.13,.65,3);drawerCabinet(side*7.65,-3.35,.6,.79,.58,2);bedsideLamp(side*7.65,-3.35);table(side*7.65,-.25);
@@ -352,6 +353,7 @@ const Office=(()=>{
  function bone(a,b,r,parent){const p=new THREE.Vector3(...a),q=new THREE.Vector3(...b),mesh=new THREE.Mesh(new THREE.CapsuleGeometry(r,p.distanceTo(q),6,16),skin);mesh.position.copy(p).add(q).multiplyScalar(.5);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),q.sub(p).normalize());mesh.castShadow=true;parent.add(mesh);return mesh;}
  ellipsoid(0,.03,0,.16,.15,.11);ellipsoid(0,.29,0,.13,.32,.095);ellipsoid(0,.61,.01,.18,.43,.12);ellipsoid(0,.88,0,.23,.11,.105);bone([0,.95,0],[0,1.20,0],.064,upper);
  const stalkerHead=new THREE.Group();stalkerHead.name='stalker-head';stalkerHead.position.set(0,1.25,.012);upper.add(stalkerHead);ellipsoid(0,0,0,.185,.27,.155,stalkerHead);ellipsoid(0,-.16,.015,.135,.10,.115,stalkerHead);
+ const headInterior=new THREE.Mesh(new THREE.SphereGeometry(1,32,24),new THREE.MeshBasicMaterial({color:0x000000,side:THREE.BackSide}));headInterior.name='gangling-head-interior';headInterior.scale.set(.184,.269,.154);stalkerHead.add(headInterior);
  function fitFace(mesh,depth){const positions=mesh.geometry.attributes.position;for(let i=0;i<positions.count;i++){const x=positions.getX(i),y=positions.getY(i),surface=.155*Math.sqrt(Math.max(.025,1-(x/.185)**2-(y/.27)**2));positions.setZ(i,surface+depth+positions.getZ(i));}positions.needsUpdate=true;mesh.geometry.computeVertexNormals();mesh.geometry.computeBoundingSphere();}
  // Pale irises, radial fibres, tiny pupils and glints inside deep eye sockets.
  const irisCanvas=document.createElement('canvas');irisCanvas.width=irisCanvas.height=128;const ig=irisCanvas.getContext('2d');const ir=ig.createRadialGradient(64,64,8,64,64,62);ir.addColorStop(0,'#dce4dc');ir.addColorStop(.55,'#bac7c2');ir.addColorStop(.88,'#edf3e9');ir.addColorStop(1,'#59635e');ig.fillStyle=ir;ig.fillRect(0,0,128,128);
@@ -370,15 +372,20 @@ const Office=(()=>{
   const elbow=new THREE.Group();elbow.position.set(sign*.09,-.57,.02);arm.add(elbow);ellipsoid(0,0,0,.056,.059,.054,elbow);bone([0,0,0],[sign*.012,-.72,.025],.034,elbow);ellipsoid(sign*.012,-.72,.025,.038,.044,.033,elbow);ellipsoid(sign*.012,-.80,.026,.051,.105,.035,elbow);for(let k=0;k<4;k++)bone([sign*.012+(k-1.5)*.020,-.87,.03],[sign*.012+(k-1.5)*.026,-1.04-k*.016,.045],.009,elbow);arms.push(arm);elbows.push(elbow);}
  const legs=[],knees=[];for(const sign of [-1,1]){const leg=new THREE.Group();leg.position.set(sign*.085,1.2,0);stalker.add(leg);ellipsoid(0,0,0,.073,.082,.069,leg);bone([0,0,0],[sign*.040,-.59,.02],.054,leg);
   const knee=new THREE.Group();knee.position.set(sign*.040,-.59,.02);leg.add(knee);ellipsoid(0,0,0,.062,.065,.059,knee);bone([0,0,0],[sign*.012,-.56,.045],.038,knee);ellipsoid(sign*.012,-.56,.045,.044,.05,.05,knee);ellipsoid(sign*.012,-.58,.11,.068,.050,.14,knee);legs.push(leg);knees.push(knee);}
- // Soft black billboards drift behind the body and darken its outline against the rooms.
- const fogCanvas=document.createElement('canvas');fogCanvas.width=fogCanvas.height=128;const fg=fogCanvas.getContext('2d');for(let i=0;i<9;i++){const x=64+Math.sin(i*2.7)*22,y=64+Math.cos(i*1.9)*22,r=32+i%3*6,g=fg.createRadialGradient(x,y,2,x,y,r);g.addColorStop(0,'rgba(0,0,0,.34)');g.addColorStop(.5,'rgba(0,0,0,.17)');g.addColorStop(1,'rgba(0,0,0,0)');fg.fillStyle=g;fg.fillRect(0,0,128,128);}const fogTexture=new THREE.CanvasTexture(fogCanvas);
- const shadowFog=new THREE.Group();shadowFog.name='stalker-fog';stalker.add(shadowFog);for(let i=0;i<9;i++){const puff=new THREE.Sprite(new THREE.SpriteMaterial({map:fogTexture,color:0x000000,transparent:true,opacity:.65,depthWrite:false}));puff.userData.seed=i;shadowFog.add(puff);}
- function animateFog(t){shadowFog.children.forEach((puff,i)=>{const spread=.72+Math.sin(t*.8+i)*.12;puff.position.set(Math.sin(i*2.3+t*.22)*.20,.18+i*.28+Math.sin(t*.5+i)*.08,-.16);puff.scale.set(spread,spread*.95,1);});}
- const doorwayPosition=new THREE.Vector3(),rushTarget=new THREE.Vector3(),headPosition=new THREE.Vector3();
- function poseStalker(){if(!G||!G.side){stalker.visible=false;return;}const s=G.side;stalker.visible=true;const stage=Math.min(2,s.stage);
-  stalker.position.set(s.door*[4.13,4.05,3.89][stage],0,[-.27,-.62,-1.15][stage]);stalker.rotation.set(0,Math.atan2(-stalker.position.x,2.5-stalker.position.z),0);
-  upper.position.set(0,1.2,0);upper.rotation.set([-.16,-.08,0][stage],0,s.door*[.30,.18,0][stage]);stalkerHead.rotation.set(0,0,-s.door*[.15,.08,0][stage]);
-  arms.forEach((arm,i)=>arm.rotation.set(stage<2?-.15:0,0,(i===0?1:-1)*(stage===0?.13:stage===1?.20:.09)));elbows.forEach(elbow=>elbow.rotation.x=-.12);legs.forEach(leg=>leg.rotation.set(0,0,0));knees.forEach(knee=>knee.rotation.x=.06);animateFog(G.t);stalker.updateMatrixWorld(true);}
+ // Charcoal-edged black smoke stays visible against the dark rooms and curls around the body.
+ const fogCanvas=document.createElement('canvas');fogCanvas.width=fogCanvas.height=128;const fg=fogCanvas.getContext('2d');for(let i=0;i<9;i++){const x=64+Math.sin(i*2.7)*22,y=64+Math.cos(i*1.9)*22,r=32+i%3*6,g=fg.createRadialGradient(x,y,2,x,y,r);g.addColorStop(0,'rgba(2,3,3,.75)');g.addColorStop(.48,'rgba(22,27,25,.42)');g.addColorStop(1,'rgba(12,16,14,0)');fg.fillStyle=g;fg.fillRect(0,0,128,128);}const fogTexture=new THREE.CanvasTexture(fogCanvas);fogTexture.colorSpace=THREE.SRGBColorSpace;
+ const shadowFog=new THREE.Group();shadowFog.name='stalker-fog';stalker.add(shadowFog);for(let i=0;i<12;i++){const puff=new THREE.Sprite(new THREE.SpriteMaterial({map:fogTexture,color:0xffffff,transparent:true,opacity:.90,depthWrite:false,fog:false}));puff.userData.seed=i;shadowFog.add(puff);}
+ let visualPhase=-1,visualOwner=null,visualDoor=-1;
+ function animateFog(t){const presence=Math.min(1,Math.max(0,visualPhase+1));shadowFog.children.forEach((puff,i)=>{const spread=1.10+Math.sin(t*.8+i)*.20;puff.position.set(Math.sin(i*2.3+t*.34)*.31,.10+i*.20+Math.sin(t*.7+i)*.11,i%3===0?.11:-.20);puff.scale.set(spread,spread*(i===0?.65:.92),1);puff.material.opacity=presence*(.78+Math.sin(t*.5+i)*.10);puff.material.rotation=Math.sin(t*.22+i)*.4;});}
+ const doorwayPosition=new THREE.Vector3(),rushTarget=new THREE.Vector3(),headPosition=new THREE.Vector3(),headOffset=new THREE.Vector3(),contactPoint=new THREE.Vector3(),attackGaze=new THREE.Vector3();
+ const ganglingPoses=[{x:5.00,z:.14,lean:0,pitch:0,tilt:0,arm:.10},{x:4.78,z:-.34,lean:.62,pitch:-.30,tilt:.12,arm:.10},{x:4.63,z:-.75,lean:.36,pitch:-.16,tilt:.08,arm:.16},{x:4.35,z:-1.52,lean:0,pitch:-.04,tilt:0,arm:.09}];
+ function poseStalker(dt=0,snap=false){const s=G&&G.side,target=s?Math.min(2,s.stage):-1;
+  if(s&&s!==visualOwner){visualOwner=s;visualDoor=s.door;visualPhase=-1;}
+  visualPhase=snap?target:visualPhase+Math.max(-dt/.45,Math.min(dt/.45,target-visualPhase));stalker.visible=!!s||visualPhase>-.999;if(!stalker.visible)return;
+  const value=Math.max(0,Math.min(3,visualPhase+1)),index=Math.min(2,Math.floor(value)),blend=value-index,k=blend*blend*(3-2*blend),a=ganglingPoses[index],b=ganglingPoses[index+1],mix=key=>THREE.MathUtils.lerp(a[key],b[key],k);
+  stalker.position.set(visualDoor*mix('x'),0,mix('z'));stalker.rotation.set(0,Math.atan2(-stalker.position.x,2.5-stalker.position.z),0);
+  upper.position.set(0,1.2,0);upper.rotation.set(mix('pitch'),0,visualDoor*mix('lean'));stalkerHead.rotation.set(0,0,-visualDoor*mix('tilt'));
+  arms.forEach((arm,i)=>arm.rotation.set(-.12*(1-Math.max(0,visualPhase)/2),0,(i===0?1:-1)*mix('arm')));elbows.forEach(elbow=>elbow.rotation.x=-.12);legs.forEach(leg=>leg.rotation.set(0,0,0));knees.forEach(knee=>knee.rotation.x=.06);animateFog(G?G.t:0);stalker.updateMatrixWorld(true);}
  function picture(x,y,z,rotation,image){const group=new THREE.Group();group.position.set(x,y,z);group.rotation.y=rotation;scene.add(group);box(.69,.85,.065,0,0,0,wood,group);box(.6,.76,.07,0,0,.015,trim,group);const texture=new THREE.Texture(image);texture.colorSpace=THREE.SRGBColorSpace;if(image.complete)texture.needsUpdate=true;else image.addEventListener('load',()=>texture.needsUpdate=true);box(.48,.64,.075,0,0,.03,new THREE.MeshStandardMaterial({map:texture,color:0x999999}),group);}
  picture(2.05,1.9,-3.35,0,IMG[ci(3)].base);picture(2.95,1.9,-3.35,0,IMG[ci(6)].base);picture(-3.85,2.1,.55,Math.PI/2,IMG[ci(5)].base);
  // Wooden table to the left. Laptop faces the player's fixed seat.
@@ -399,7 +406,7 @@ const Office=(()=>{
  // Desk lamp, not a glowing sci-fi terminal.
  rod([-2.9,.94,1.3],[-2.9,1.55,1.3],.025,metal);box(.24,.03,.24,-2.9,.96,1.3,metal);
  const shade=new THREE.Mesh(new THREE.CylinderGeometry(.16,.3,.27,16),mat(0x99978a));shade.position.set(-2.9,1.65,1.3);scene.add(shade);
- const lamp=new THREE.PointLight(0xd5cfb7,8,7,2);lamp.position.set(-2.9,1.48,1.3);lamp.castShadow=true;lamp.shadow.mapSize.set(512,512);scene.add(lamp);
+ const lamp=new THREE.PointLight(0xd5cfb7,8,3.2,2);lamp.position.set(-2.9,1.48,1.3);lamp.castShadow=true;lamp.shadow.mapSize.set(512,512);scene.add(lamp);
  // The rear vent is behind the fixed seat. Inspection uses the camera feeds.
  box(8,3.5,.2,0,1.75,3.55,wall);
  const ventGroup=new THREE.Group();ventGroup.position.set(0,1.15,3.4);ventGroup.rotation.y=Math.PI;scene.add(ventGroup);
@@ -408,6 +415,8 @@ const Office=(()=>{
  for(const x of [-.68,.68])for(const y of [-.49,.49])box(.025,.025,.025,x,y,.065,trim,ventGroup);
  scene.add(new THREE.HemisphereLight(0xc6cecb,0x282724,.8));const overhead=new THREE.PointLight(0xcbd0c4,7,10,2);overhead.position.set(0,3.1,-1.8);overhead.castShadow=true;scene.add(overhead);box(.5,.06,.5,0,3.42,-1.8,metal);
  const beam=new THREE.SpotLight(0xe0e3cf,0,16,.52,.65,1);beam.position.copy(camera.position);beam.target.position.set(6.2,1.3,-2.1);scene.add(beam,beam.target);
+ // Reduce ambient light inside bedrooms while preserving the direct doorway beam.
+ const shadedMaterials=new Set();scene.traverse(o=>{if(!o.isMesh||!o.material.isMeshStandardMaterial||shadedMaterials.has(o.material))return;const material=o.material;shadedMaterials.add(material);material.onBeforeCompile=shader=>{shader.vertexShader='varying vec3 vBedroomPosition;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvBedroomPosition=(modelMatrix*vec4(position,1.0)).xyz;');shader.fragmentShader='varying vec3 vBedroomPosition;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <lights_fragment_end>','#include <lights_fragment_end>\nfloat bedroomShade=smoothstep(4.15,5.3,abs(vBedroomPosition.x));\nreflectedLight.indirectDiffuse*=mix(1.0,0.06,bedroomShade);\nreflectedLight.indirectSpecular*=mix(1.0,0.06,bedroomShade);');};material.customProgramCacheKey=()=> 'dark-bedrooms-v1';material.needsUpdate=true;});
  let yaw=0,targetYaw=0,pitch=-.18,targetPitch=-.18,monitor=false,drag=null,dragged=false,doorLight=false,zoom=0,zoomTarget=0,signalUntil=0,attackOrigin=null;
  const signalCanvas=document.createElement('canvas');signalCanvas.width=320;signalCanvas.height=180;const signalCtx=signalCanvas.getContext('2d'),signalPixels=signalCtx.createImageData(320,180);
  attackView.width=innerWidth;attackView.height=innerHeight;
@@ -418,18 +427,20 @@ const Office=(()=>{
  function active(){return G&&!G.over&&!monitor&&zoom===0&&zoomTarget===0;}
  function monitorUI(open){monitor=!!open;document.body.classList.toggle('monitor-open',monitor);document.getElementById('close-monitor').hidden=!monitor&&zoom===0;document.getElementById('office-nav').hidden=monitor||zoom>0;document.getElementById('office-hint').hidden=monitor||zoom>0;if(open){fit();document.getElementById('close-monitor').focus();}}
  // Immediate changes are reserved for title/reset and a forced jumpscare.
- function setMonitor(open){attackOrigin=null;attackView.hidden=true;signalUntil=0;zoom=zoomTarget=open?1:0;drag=null;laptopGlow.intensity=open?2.4:0;if(!open){paintLaptop();camera.position.copy(seatPosition);camera.rotation.set(pitch,yaw,0,'YXZ');camera.fov=baseFov;camera.updateProjectionMatrix();}if(open)doorLight=false;monitorUI(open);if(!open&&G&&!G.over)document.getElementById('look-front').focus();}
+ function setMonitor(open){attackOrigin=null;attackView.hidden=true;$('office-hud').hidden=false;signalUntil=0;zoom=zoomTarget=open?1:0;drag=null;laptopGlow.intensity=open?2.4:0;if(!open){paintLaptop();camera.position.copy(seatPosition);camera.rotation.set(pitch,yaw,0,'YXZ');camera.fov=baseFov;camera.updateProjectionMatrix();}if(open)doorLight=false;monitorUI(open);if(!open&&G&&!G.over)document.getElementById('look-front').focus();}
  function startAttack(kind){if(attackOrigin===kind)return;setMonitor(false);attackOrigin=kind;doorLight=false;beam.intensity=0;drag=null;camera.position.copy(seatPosition);camera.fov=kind==='dw'?85:baseFov;
-  if(kind==='side'){poseStalker();doorwayPosition.copy(stalker.position);stalkerHead.getWorldPosition(headPosition);camera.lookAt(headPosition);rushTarget.copy(seatPosition).addScaledVector(stalker.position.clone().sub(seatPosition).setY(0).normalize(),.30);rushTarget.y=-.65;}
+  if(kind==='side'){poseStalker(0,true);doorwayPosition.copy(stalker.position);stalkerHead.getWorldPosition(headPosition);camera.lookAt(headPosition);attackGaze.copy(headPosition).sub(seatPosition).normalize();}
   else camera.lookAt(kind==='dw'?new THREE.Vector3(0,1.15,3.4):new THREE.Vector3(0,-.25,-4.4));
-  camera.updateProjectionMatrix();attackView.hidden=false;attackCtx.clearRect(0,0,attackView.width,attackView.height);$('scare-previews').hidden=true;document.getElementById('office-nav').hidden=true;document.getElementById('office-hint').hidden=true;document.getElementById('close-monitor').hidden=true;renderer.render(scene,camera);}
- function animateSideAttack(){const t=G.tot-G.scare,p=Math.max(0,Math.min(1,(t-.15)/.65)),rush=p*p*(3-2*p);stalker.position.lerpVectors(doorwayPosition,rushTarget,rush);upper.rotation.set(-.10*p,0,0);stalkerHead.rotation.set(0,0,Math.sin(t*35)*p*.035);
+  camera.updateProjectionMatrix();attackView.hidden=false;attackCtx.clearRect(0,0,attackView.width,attackView.height);$('office-hud').hidden=true;$('scare-previews').hidden=true;document.getElementById('office-nav').hidden=true;document.getElementById('office-hint').hidden=true;document.getElementById('close-monitor').hidden=true;renderer.render(scene,camera);}
+ function animateSideAttack(){const t=G.tot-G.scare,p=Math.max(0,Math.min(1,(t-.10)/.62)),rush=Math.pow(p,2.7);upper.rotation.set(-.20*p,0,0);stalkerHead.rotation.set(0,0,Math.sin(t*43)*p*.045);
+  headOffset.copy(stalkerHead.position).applyEuler(upper.rotation).add(upper.position).applyAxisAngle(new THREE.Vector3(0,1,0),stalker.rotation.y);rushTarget.copy(seatPosition).sub(headOffset);stalker.position.lerpVectors(doorwayPosition,rushTarget,rush);
   arms.forEach((arm,i)=>arm.rotation.set(-.7*p+Math.sin(t*24+i*Math.PI)*p*.55,0,(i===0?1:-1)*(.12+p*.32)));elbows.forEach((elbow,i)=>elbow.rotation.x=-.12-p*(.32+Math.sin(t*24+i*Math.PI)*.18));legs.forEach((leg,i)=>leg.rotation.x=Math.sin(t*26+i*Math.PI)*Math.sin(p*Math.PI)*.7);knees.forEach((knee,i)=>knee.rotation.x=.06+Math.max(0,Math.sin(t*26+i*Math.PI))*.4*Math.sin(p*Math.PI));animateFog(G.t+t);
-  stalker.updateMatrixWorld(true);stalkerHead.getWorldPosition(headPosition);camera.position.copy(seatPosition);camera.lookAt(headPosition);camera.rotateZ(Math.sin(t*45)*Math.max(0,p-.75)*.13);renderer.render(scene,camera);
-  attackCtx.clearRect(0,0,attackView.width,attackView.height);if(t>.87){attackCtx.fillStyle='rgba(0,0,0,'+Math.min(1,(t-.87)/.11)+')';attackCtx.fillRect(0,0,attackView.width,attackView.height);}deathFlashes(attackCtx,attackView.width,attackView.height);}
+  stalker.updateMatrixWorld(true);stalkerHead.getWorldPosition(headPosition);camera.position.copy(seatPosition);camera.lookAt(headPosition.distanceTo(seatPosition)>.18?headPosition:contactPoint.copy(seatPosition).add(attackGaze));camera.rotateZ(Math.sin(t*58)*Math.max(0,p-.50)*.18);renderer.render(scene,camera);
+  contactPoint.copy(seatPosition);stalkerHead.worldToLocal(contactPoint);const inside=(contactPoint.x/.185)**2+(contactPoint.y/.27)**2+(contactPoint.z/.155)**2<1;
+  attackCtx.clearRect(0,0,attackView.width,attackView.height);if(inside){attackCtx.fillStyle='#000';attackCtx.fillRect(0,0,attackView.width,attackView.height);}deathFlashes(attackCtx,attackView.width,attackView.height);}
  function finishAttack(){setMonitor(false);}
  function beginZoom(open){signalUntil=performance.now()+90;doorLight=false;drag=null;if(open&&zoom===0){seatRotation.copy(camera.quaternion);}zoomTarget=open?1:0;monitorUI(false);document.getElementById('close-monitor').hidden=false;document.getElementById('office-nav').hidden=true;document.getElementById('office-hint').hidden=true;}
- function reset(){doorLight=false;stalker.visible=false;turn(0);yaw=0;pitch=targetPitch=-.18;setMonitor(false);}
+ function reset(){doorLight=false;stalker.visible=false;visualPhase=-1;visualOwner=null;turn(0);yaw=0;pitch=targetPitch=-.18;setMonitor(false);}
  function officeFlash(){if(!active())return;if(Math.abs(targetYaw)<.4){doorLight=false;return;}doorLight=!doorLight;}
  const laptopPosition=new THREE.Vector3(),lookDirection=new THREE.Vector3(),toLaptop=new THREE.Vector3();
  function lookingAtLaptop(){laptop.getWorldPosition(laptopPosition);camera.getWorldDirection(lookDirection);toLaptop.copy(laptopPosition).sub(camera.position).normalize();return lookDirection.dot(toLaptop)>=Math.cos(Math.PI/6);}
@@ -448,7 +459,7 @@ const Office=(()=>{
   if(zoom!==zoomTarget){const step=Math.min(.25,elapsed)/zoomDuration;zoom=zoomTarget>zoom?Math.min(zoomTarget,zoom+step):Math.max(zoomTarget,zoom-step);if(zoom===zoomTarget){signalUntil=t+80;if(zoom===1&&G)G.cut=Math.max(G.cut||0,.12);monitorUI(zoom===1);if(zoom===0&&G&&!G.over)document.getElementById('open-laptop').focus();}}
   if(zoom===0&&zoomTarget===0){const k=1-Math.exp(-dt*8);yaw+=(targetYaw-yaw)*k;pitch+=(targetPitch-pitch)*k;camera.position.copy(seatPosition);camera.rotation.set(pitch,yaw,0,'YXZ');seatRotation.copy(camera.quaternion);camera.fov=baseFov;}
   else{screen.getWorldPosition(screenPosition);screen.getWorldQuaternion(screenRotation);screenNormal.set(0,0,1).applyQuaternion(screenRotation);const distance=.50/(2*Math.tan(THREE.MathUtils.degToRad(zoomFov/2)))*1.03;zoomPosition.copy(screenPosition).addScaledVector(screenNormal,distance);const eased=zoom*zoom*(3-2*zoom);camera.position.lerpVectors(seatPosition,zoomPosition,eased);camera.quaternion.slerpQuaternions(seatRotation,screenRotation,eased);camera.fov=THREE.MathUtils.lerp(baseFov,zoomFov,eased);}
-  camera.updateProjectionMatrix();poseStalker();if(!monitor||zoom!==zoomTarget)paintLaptop();
+  camera.updateProjectionMatrix();poseStalker(dt);if(!monitor||zoom!==zoomTarget)paintLaptop();
   const powered=monitor||zoom>0||zoomTarget>0;laptopGlow.intensity=powered?2.4:0;
   const interference=powered&&(zoom!==zoomTarget||t<signalUntil);
   if(interference){const bytes=signalPixels.data;for(let j=0;j<bytes.length;j+=4){const v=Math.random()*225|0;bytes[j]=bytes[j+1]=bytes[j+2]=v;bytes[j+3]=255;}signalCtx.putImageData(signalPixels,0,0);signalCtx.fillStyle='#010302';for(let k=0;k<4;k++)signalCtx.fillRect(0,(t*.32+k*41)%180,320,2+k);lc.save();lc.globalAlpha=1;lc.globalCompositeOperation='copy';lc.drawImage(signalCanvas,0,0,laptopCanvas.width,laptopCanvas.height);lc.restore();screenTexture.needsUpdate=true;}
