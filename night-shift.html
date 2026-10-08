@@ -422,7 +422,7 @@ document.body.appendChild($('ov'));
 // Fixed-seat office. Only camera rotation changes; its position never moves.
 const Office=(()=>{
  const root=document.getElementById('office'), scene=new THREE.Scene();
- scene.background=new THREE.Color(0x000000);scene.fog=new THREE.FogExp2(0x000000,.046);
+ scene.background=new THREE.Color(0x050708);scene.fog=new THREE.FogExp2(0x050708,.035);
  const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.08,40);camera.position.set(0,1.42,2.5);camera.rotation.order='YXZ';
  let renderer;
  try{renderer=new THREE.WebGLRenderer({antialias:true});}catch(e){root.innerHTML='<p class="webgl-error">This office needs WebGL. Enable hardware acceleration in your browser, then reload.</p>';return {ready:false,monitor:false,camerasDown:true,startAttack(){},animateSideAttack(){},finishAttack(){},setMonitor(){},reset(){},flash(){}};}
@@ -557,11 +557,26 @@ const Office=(()=>{
  box(1.5,1.15,.08,0,0,0,metal,ventGroup);box(1.32,.97,.10,0,0,.06,mat(0x030404),ventGroup);
  for(let i=0;i<9;i++)box(1.3,.035,.065,0,-.39+i*.097,.13,metal,ventGroup);
  for(const x of [-.68,.68])for(const y of [-.49,.49])box(.025,.025,.025,x,y,.065,trim,ventGroup);
- // Unpowered fixtures remain visible only when caught by the flashlight.
+ // Faint night-adapted fill makes the office layout readable between flashlight checks.
+ const nightFill=new THREE.HemisphereLight(0x9aaebb,0x494438,1.2);scene.add(nightFill);
  box(.5,.06,.5,0,3.42,-1.8,metal);
- const beam=new THREE.SpotLight(0xe0e3cf,0,16,.52,.65,1);beam.position.copy(camera.position);beam.target.position.set(6.2,1.3,-2.1);beam.castShadow=true;beam.shadow.mapSize.set(1024,1024);beam.shadow.camera.near=.08;beam.shadow.camera.far=16;beam.shadow.bias=-.0002;beam.shadow.normalBias=.025;scene.add(beam,beam.target);
+ const beam=new THREE.SpotLight(0xe0e3cf,0,16,.62,.75,1);beam.position.copy(camera.position);beam.target.position.set(6.2,1.3,-2.1);beam.castShadow=true;beam.shadow.mapSize.set(1024,1024);beam.shadow.camera.near=.08;beam.shadow.camera.far=16;beam.shadow.bias=-.0002;beam.shadow.normalBias=.025;scene.add(beam,beam.target);
  // Reduce ambient light inside bedrooms while preserving the direct doorway beam.
  const shadedMaterials=new Set();scene.traverse(o=>{if(!o.isMesh||!o.material.isMeshStandardMaterial||shadedMaterials.has(o.material))return;const material=o.material;shadedMaterials.add(material);material.onBeforeCompile=shader=>{shader.vertexShader='varying vec3 vBedroomPosition;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvBedroomPosition=(modelMatrix*vec4(position,1.0)).xyz;');shader.fragmentShader='varying vec3 vBedroomPosition;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <lights_fragment_end>','#include <lights_fragment_end>\nfloat bedroomShade=smoothstep(4.15,5.3,abs(vBedroomPosition.x));\nreflectedLight.indirectDiffuse*=mix(1.0,0.06,bedroomShade);\nreflectedLight.indirectSpecular*=mix(1.0,0.06,bedroomShade);');};material.customProgramCacheKey=()=> 'dark-bedrooms-v1';material.needsUpdate=true;});
+ // Trace the flashlight against visible surfaces to place an occluded diffuse bounce.
+ const flashlightBounce=new THREE.PointLight(0xe0e3cf,0,3.6,2);flashlightBounce.castShadow=true;flashlightBounce.shadow.mapSize.set(256,256);flashlightBounce.shadow.camera.near=.05;flashlightBounce.shadow.camera.far=3.6;flashlightBounce.shadow.normalBias=.04;scene.add(flashlightBounce);
+ const bounceRay=new THREE.Raycaster(),beamDirection=new THREE.Vector3(),bounceNormal=new THREE.Vector3(),bounceNormalMatrix=new THREE.Matrix3();let nextBounce=0;
+ const bounceSurfaces=[];scene.traverse(o=>{if(o.isMesh&&o.material.isMeshStandardMaterial)bounceSurfaces.push(o);});
+ function updateFlashlightLighting(t){
+  beam.position.copy(camera.position);camera.getWorldDirection(beamDirection);beam.target.position.copy(beam.position).addScaledVector(beamDirection,12);
+  if(!doorLight){beam.intensity=0;flashlightBounce.intensity=0;nextBounce=0;return;}beam.intensity=65;
+  if(t<nextBounce)return;nextBounce=t+80;scene.updateMatrixWorld(true);bounceRay.set(beam.position,beamDirection);bounceRay.near=.15;bounceRay.far=12;
+  const visible=bounceSurfaces.filter(o=>{for(let p=o;p;p=p.parent)if(!p.visible)return false;return true;});
+  const hit=bounceRay.intersectObjects(visible,false)[0];if(!hit){flashlightBounce.intensity=0;return;}
+  bounceNormalMatrix.getNormalMatrix(hit.object.matrixWorld);bounceNormal.copy(hit.face.normal).applyMatrix3(bounceNormalMatrix).normalize();if(bounceNormal.dot(beamDirection)>0)bounceNormal.negate();
+  flashlightBounce.position.copy(hit.point).addScaledVector(bounceNormal,.15);flashlightBounce.color.copy(hit.object.material.color).multiply(beam.color);
+  flashlightBounce.intensity=3.5*Math.max(.15,-bounceNormal.dot(beamDirection))/Math.max(1,hit.distance*.35);
+ }
  let yaw=0,targetYaw=0,pitch=-.18,targetPitch=-.18,monitor=false,drag=null,dragged=false,doorLight=false,zoom=0,zoomTarget=0,signalUntil=0,attackOrigin=null;
  const signalCanvas=document.createElement('canvas');signalCanvas.width=320;signalCanvas.height=180;const signalCtx=signalCanvas.getContext('2d'),signalPixels=signalCtx.createImageData(320,180);
  attackView.width=innerWidth;attackView.height=innerHeight;
@@ -573,7 +588,7 @@ const Office=(()=>{
  function monitorUI(open){monitor=!!open;document.body.classList.toggle('monitor-open',monitor);document.getElementById('close-monitor').hidden=!monitor&&zoom===0;document.getElementById('office-nav').hidden=monitor||zoom>0;if(open){fit();(Controls.touch?$('close-monitor'):$('controls-toggle')).focus({preventScroll:true});}}
  // Reset and entity attacks interrupt the laptop transition immediately.
  function setMonitor(open){attackOrigin=null;attackView.hidden=true;$('office-hud').hidden=false;signalUntil=0;zoom=zoomTarget=open?1:0;drag=null;laptopGlow.intensity=open?2.4:0;monitorUI(open);if(!open){paintLaptop();camera.position.copy(seatPosition);camera.rotation.set(pitch,yaw,0,'YXZ');camera.fov=baseFov;camera.updateProjectionMatrix();}if(open)doorLight=false;if(!open&&G&&!G.over)Controls.focusOffice();}
- function startAttack(kind){if(attackOrigin===kind)return;setMonitor(false);attackOrigin=kind;doorLight=false;beam.intensity=0;drag=null;camera.position.copy(seatPosition);camera.fov=kind==='dw'?85:baseFov;
+ function startAttack(kind){if(attackOrigin===kind)return;setMonitor(false);attackOrigin=kind;doorLight=false;beam.intensity=0;flashlightBounce.intensity=0;drag=null;camera.position.copy(seatPosition);camera.fov=kind==='dw'?85:baseFov;
   if(kind==='side'){poseStalker(0,true);doorwayPosition.copy(stalker.position);stalkerHead.getWorldPosition(headPosition);camera.lookAt(headPosition);attackGaze.copy(headPosition).sub(seatPosition).normalize();}
   else camera.lookAt(kind==='dw'?new THREE.Vector3(0,1.15,3.4):new THREE.Vector3(0,-.25,-4.4));
   camera.updateProjectionMatrix();attackView.hidden=false;attackCtx.clearRect(0,0,attackView.width,attackView.height);$('office-hud').hidden=true;$('game-menu').hidden=true;document.getElementById('office-nav').hidden=true;document.getElementById('close-monitor').hidden=true;renderer.render(scene,camera);}
@@ -608,7 +623,7 @@ const Office=(()=>{
   const powered=monitor||zoom>0||zoomTarget>0;laptopGlow.intensity=powered?2.4:0;
   const interference=powered&&(zoom!==zoomTarget||t<signalUntil);
   if(interference){const bytes=signalPixels.data;for(let j=0;j<bytes.length;j+=4){const v=Math.random()*225|0;bytes[j]=bytes[j+1]=bytes[j+2]=v;bytes[j+3]=255;}signalCtx.putImageData(signalPixels,0,0);signalCtx.fillStyle='#010302';for(let k=0;k<4;k++)signalCtx.fillRect(0,(t*.32+k*41)%180,320,2+k);lc.save();lc.globalAlpha=1;lc.globalCompositeOperation='copy';lc.drawImage(signalCanvas,0,0,laptopCanvas.width,laptopCanvas.height);lc.restore();screenTexture.needsUpdate=true;}
-if(Math.abs(targetYaw)<.4||!G||G.over||monitor||zoom>0)doorLight=false;beam.position.copy(camera.position);beam.target.position.set(targetYaw>0?-6.5:6.5,1.25,-2.3);beam.intensity=doorLight?65:0;
+if(Math.abs(targetYaw)<.4||!G||G.over||monitor||zoom>0)doorLight=false;updateFlashlightLighting(t);
  document.getElementById('office-clock').textContent=document.getElementById('clock').textContent;document.getElementById('office-mist').textContent=document.getElementById('mist').textContent;
  const laptopButton=document.getElementById('open-laptop');laptopButton.disabled=zoom>0||!lookingAtLaptop();laptopButton.title='Laptop';document.getElementById('office-flash').disabled=Math.abs(targetYaw)<.4;document.getElementById('office-flash').classList.toggle('on',doorLight);document.getElementById('office-flash').setAttribute('aria-pressed',String(doorLight));for(const [id,value] of [['look-left',.85],['look-front',0],['look-right',-.85]])document.getElementById(id).classList.toggle('on',Math.abs(targetYaw-value)<.2);
  if(!monitor||zoom!==zoomTarget)renderer.render(scene,camera);}
