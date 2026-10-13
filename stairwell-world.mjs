@@ -83,7 +83,7 @@ export function objectsForFloor(n,run) {
   const list=[];
   if(n===100) return [at('exit','Return to the Mines',15.5,0)];
   if(n===99) return [at('cobbler','Cobbler · exchange scrap',9,0),at('shoplight','Buy battery · 3 gold',13,-2),at('shopheal','Buy bandage · 5 gold',15,-2),at('exit','Exit · Landing 200',17,0)];
-  if(n===0) return [at('startdoor','Release the stairwell gate',6.5,0)];
+  if(n===0) return [at('startdoor','Release the Rarewell gate',6.5,0)];
   list.push(at('scrap','Pick up scrap',7.5,-2,{value:3}),at('battery','Pick up battery',9,-2,{value:30}),
     at('grinder','Grind carried items',8,2),at('bandage','Pick up bandage',13.5,-2,{value:30}));
   if(MELD_FLOORS.includes(n))list.push(at('alarm','Pull fire alarm',12.8,2.65),at('shelter','Enter fire shelter',15.9,0));

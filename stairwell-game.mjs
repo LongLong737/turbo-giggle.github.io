@@ -96,7 +96,7 @@ function flight(n){
   box(0,y+1.6,l.z>0?6.4:-6.4,9.8,3.2,.3,materials.wall);
   const face=l.z>0?Math.PI:0;
   sign(String(100+n).padStart(3,'0'),l.side*-2.1,y+1.6,l.z>0?6.23:-6.23,1.8,.95,face,'#c3c4b1','#3b4137');
-  sign('STAIRWELL\n↑ CONTINUE',l.side*2.3,y+1.8,l.z>0?6.22:-6.22,1.5,.65,face,'#adc595','#293727');
+  sign('RAREWELL\n↑ CONTINUE',l.side*2.3,y+1.8,l.z>0?6.22:-6.22,1.5,.65,face,'#adc595','#293727');
   box(0,y+2.8,l.z,2.4,.1,.35,materials.dark);box(0,y+2.74,l.z,2.15,.035,.17,materials.glow);
   if(Math.abs(n-visibleFloor)<2){const light=new T.PointLight(n%8===0?'#d6a974':'#c3d8a0',4.5,10,1.8);light.position.set(0,y+2.5,l.z);environment.add(light);lamps.push(light);}
   beam([4.53,y,-5.8],[4.53,y+RISE,-5.8],.12,materials.pipe);beam([-4.53,y,5.8],[-4.53,y+RISE,5.8],.07,materials.metal);
@@ -193,7 +193,7 @@ async function init(){
     await renderer.init();buildMaterials();
     hemi=new T.HemisphereLight('#b2c29b','#252820',.42);scene.add(hemi);ambient=new T.AmbientLight('#728062',.2);scene.add(ambient);
     torch=new T.SpotLight('#fff0ce',16,24,.47,.55,1.6);torchTarget=new T.Object3D();scene.add(torch,torchTarget);torch.target=torchTarget;
-    entityModels();rebuild(1);$('start').disabled=false;$('start').innerHTML='Enter the Stairwell <span>↗</span>';
+    entityModels();rebuild(1);$('start').disabled=false;$('start').innerHTML='Enter the Rarewell <span>↗</span>';
     requestAnimationFrame(tick);window.stairwell={ready:true,state:()=>run?{status:run.status,floor:run.floor,health:run.health,player:{...run.player},scrap:run.scrap,alarm:run.alarm,practice:run.practice}:null};
     if(new URLSearchParams(location.search).has('qa'))window.stairwell.qa={teleport:(n,x,z)=>{run.player={x:x??landing(n).side*7,y:n*RISE,z:z??landing(n).z};updateRun(run,0);rebuild(n);camera.position.set(run.player.x,run.player.y+1.65,run.player.z);updateHud();},look:(y,p=0)=>{yaw=y;pitch=p;camera.rotation.set(p,y,0);},object:kind=>objectsForFloor(run.floor,run).find(o=>o.kind===kind),use:kind=>{const o=objectsForFloor(run.floor,run).find(o=>o.kind===kind);if(o){run.player={x:o.x,y:o.y,z:o.z};interact(run,o);}},advance:(seconds)=>{for(let i=0;i<seconds*20;i++)updateRun(run,.05);updateHud();},raw:()=>run};
   }catch(e){show('error');$('error-text').textContent='The 3D renderer could not start. Enable WebGL2 or try an updated Chrome, Edge, Firefox, or Safari.';console.error(e);}
@@ -202,7 +202,7 @@ function lock(){if(matchMedia('(pointer:fine)').matches)canvas.requestPointerLoc
 function start(){
   audio.start();run=makeRun({practice:$('practice').checked,shakelight:$('shakelight').checked,garageKey:$('garage-key').checked});
   yaw=Math.PI;pitch=0;cameraHeight=1.65;healthBefore=100;footstep=0;last=performance.now();playing=true;paused=false;keys.clear();nearest=null;camera.position.set(run.player.x,run.player.y+1.65,run.player.z);
-  rebuild(0);show('hud');$('mode-label').textContent=run.practice?'EXPLORE MODE':'THE STAIRWELL';message(run,'Climb to Landing 200. Follow the stairwell upward.',6);lock();tone(140,.4,.08);
+  rebuild(0);show('hud');$('mode-label').textContent=run.practice?'EXPLORE MODE':'D00RS: THE RAREWELL';message(run,'Climb to Landing 200. Follow the Rarewell upward.',6);lock();tone(140,.4,.08);
 }
 function pause(){if(!playing||paused)return;paused=true;keys.clear();joystick={x:0,y:0};touchSprint=false;show('pause');document.exitPointerLock?.();}
 function resume(){if(!playing)return;paused=false;keys.clear();show('hud');audio.start();lock();last=performance.now();}

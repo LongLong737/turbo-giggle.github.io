@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#101310">
-  <meta name="description" content="Explore a first-person browser recreation of the DOORS Stairwell. Climb the concrete stairs, evade Creak, and follow fire protocol.">
+  <meta name="description" content="Explore D00RS: The Rarewell, a first-person browser recreation of the DOORS Stairwell. Climb the concrete stairs, evade Creak, and follow fire protocol.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2310170d'/%3E%3Cpath d='M4 26h6v-6h6v-6h6V8h6' fill='none' stroke='%23d0a16d' stroke-width='3'/%3E%3C/svg%3E">
-  <title>The Stairwell · Turbo Giggle</title>
+  <title>D00RS: The Rarewell · Turbo Giggle</title>
   <link rel="stylesheet" href="./stairwell.css">
 </head>
 <body>
-  <canvas id="view" aria-label="First-person Stairwell game"></canvas>
+  <canvas id="view" aria-label="First-person D00RS: The Rarewell game"></canvas>
   <div class="vignette" aria-hidden="true"></div>
   <div id="damage" aria-hidden="true"></div>
   <div id="menu" class="screen">
@@ -18,22 +18,22 @@
     <div class="edition">A DOORS FAN RECREATION <span>SUBFLOOR / 152</span></div>
     <main class="intro">
       <div class="eyebrow"><span class="status-light"></span> ACCESS GRANTED</div>
-      <p class="doors-word">D O O R S</p>
-      <h1>THE<br>STAIRWELL</h1>
+      <p class="doors-word">D 0 0 R S</p>
+      <h1>THE<br>RAREWELL</h1>
       <p class="intro-copy">One hundred landings.<br>Keep your distance. Follow protocol.</p>
       <div class="loadout" aria-label="Equipment">
         <label><input id="shakelight" type="checkbox"> Shakelight <span>recharge with R</span></label>
         <label><input id="garage-key" type="checkbox"> Garage key <span>one locked cache</span></label>
         <label><input id="practice" type="checkbox"> Explore mode <span>hazards disabled</span></label>
       </div>
-      <button id="start" class="primary" disabled>Preparing the stairwell… <span>↗</span></button>
+      <button id="start" class="primary" disabled>Preparing the Rarewell… <span>↗</span></button>
       <div class="menu-actions"><button id="guide-open">Survival guide</button><button id="settings-open">Settings</button><span id="record">LANDING 100</span></div>
     </main>
     <div class="menu-foot"><span>WASD / MOVE &nbsp; · &nbsp; MOUSE / LOOK &nbsp; · &nbsp; E / INTERACT</span><span>Headphones recommended</span></div>
     <p class="attribution">Independent browser recreation. Original DOORS by LSPLASH. Procedural art and audio.</p>
   </div>
   <div id="hud" hidden>
-    <div class="hud-top"><div class="floor-label"><small>LANDING</small><strong id="floor">100</strong></div><div class="hud-top-right"><span id="mode-label">THE STAIRWELL</span><button id="pause-open" aria-label="Pause game">II</button></div></div>
+    <div class="hud-top"><div class="floor-label"><small>LANDING</small><strong id="floor">100</strong></div><div class="hud-top-right"><span id="mode-label">D00RS: THE RAREWELL</span><button id="pause-open" aria-label="Pause game">II</button></div></div>
     <div id="alarm-banner" hidden role="status"><small>FIRE PROTOCOL</small><strong id="alarm-text">SEEK SHELTER</strong><span id="alarm-time">15</span></div>
     <div id="crosshair" aria-hidden="true">+</div>
     <div id="interact" hidden><kbd>E</kbd><span id="interact-label"></span></div>
@@ -42,12 +42,12 @@
     <div class="keyboard-hint">SHIFT / SPRINT &nbsp; C / CROUCH &nbsp; Q / THROW &nbsp; ESC / PAUSE</div>
     <div id="touch-controls"><div id="joystick" aria-label="Movement joystick"><div id="stick"></div></div><div class="touch-actions"><button id="touch-lookback" aria-label="Look behind">BACK</button><button id="touch-run" aria-label="Sprint">RUN</button><button id="touch-interact" aria-label="Interact">E</button><button id="touch-throw" aria-label="Throw Stem">THROW</button><button id="touch-shake" aria-label="Recharge Shakelight">SHAKE</button></div></div>
   </div>
-  <div id="pause" class="screen overlay" hidden><div class="panel"><p class="eyebrow">THE STAIRWELL</p><h2>Hold your breath.</h2><p>The stairwell is paused.</p><button id="resume" class="primary">Continue <span>→</span></button><button id="pause-guide" class="secondary">Survival guide</button><button id="pause-settings" class="secondary">Settings</button><button id="restart" class="text-button">Start a new run</button><a href="./" class="text-button">Back to Turbo Giggle</a></div></div>
+  <div id="pause" class="screen overlay" hidden><div class="panel"><p class="eyebrow">D00RS: THE RAREWELL</p><h2>Hold your breath.</h2><p>The Rarewell is paused.</p><button id="resume" class="primary">Continue <span>→</span></button><button id="pause-guide" class="secondary">Survival guide</button><button id="pause-settings" class="secondary">Settings</button><button id="restart" class="text-button">Start a new run</button><a href="./" class="text-button">Back to Turbo Giggle</a></div></div>
   <div id="guide" class="screen overlay" hidden><div class="panel wide"><p class="eyebrow">SURVIVAL PROTOCOL</p><h2>Watch your step.</h2><div class="guide-grid"><article><b>01 / Creak</b><p>Keep moving. Check behind you briefly. Staring too long makes Creak aggressive. Stay out of its reach.</p></article><article><b>02 / Noise</b><p>The television awakens Noise. It follows when you move. Stop to buy time, approach the TV, and press E to push it down the stairs.</p></article><article><b>03 / Meld</b><p>The growth blocks the stairs. Find the alarm in the side room, pull it, and reach the marked fire shelter within 15 seconds. Wait for the sprinklers to stop.</p></article><article><b>04 / The Depot</b><p>Collect items and grind them into scrap. Cobbler exchanges scrap for gold at Landing 199. Gold buys batteries and bandages.</p></article><article><b>05 / Stems & garages</b><p>Carry a Stem with E and throw with Q. Sprinklers fire it into ceramic you can grind. A garage key opens one cache.</p></article><article><b>06 / Equipment</b><p>F toggles your light; R recharges a Shakelight. Shift sprints, C crouches, and E interacts. On touch, use the left stick and drag the right side to look. Gamepad: sticks move/look, A interacts, B toggles light, RT sprints, X recharges, Y throws, and LB looks behind.</p></article></div><p class="guide-note">This solo recreation uses generated models and estimated behavior. It does not connect to Roblox. <a href="https://www.roblox.com/games/6516141723/DOORS" target="_blank" rel="noopener">Play the original DOORS ↗</a></p><button id="guide-close" class="primary">Understood <span>→</span></button></div></div>
   <div id="settings" class="screen overlay" hidden><div class="panel"><p class="eyebrow">PERSONAL EQUIPMENT</p><h2>Settings</h2><label class="setting">Sound <input id="sound" type="checkbox" checked></label><label class="setting">Brightness <input id="brightness" type="range" min="0.5" max="2" step="0.1" value="1"></label><label class="setting">Look sensitivity <input id="sensitivity" type="range" min="0.3" max="2" step="0.1" value="1"></label><label class="setting">Resolution <select id="quality"><option value="1">Balanced</option><option value="0.7">Performance</option><option value="1.5">High</option></select></label><button id="fullscreen" class="secondary">Toggle fullscreen</button><button id="settings-close" class="primary">Done <span>→</span></button></div></div>
   <div id="result" class="screen overlay" hidden><div class="panel"><p id="result-eyebrow" class="eyebrow">SIGNAL LOST</p><h2 id="result-title">You died.</h2><p id="result-cause"></p><div class="run-stat"><span>LANDING REACHED</span><strong id="result-floor">100</strong></div><p id="badges"></p><button id="result-retry" class="primary">Try again <span>↗</span></button><button id="result-menu" class="text-button">Return to entrance</button><a href="./" class="text-button">Back to Turbo Giggle</a></div></div>
   <div id="error" class="screen overlay" hidden><div class="panel"><h2>The lights are out.</h2><p id="error-text">The 3D renderer could not start. Try a browser with WebGL2 enabled.</p><button class="primary" onclick="location.reload()">Try again</button><a href="./" class="text-button">Back to Turbo Giggle</a></div></div>
-  <noscript><div class="screen overlay"><div class="panel">JavaScript is required to enter the Stairwell. <a href="./">Back to Turbo Giggle</a></div></div></noscript>
+  <noscript><div class="screen overlay"><div class="panel">JavaScript is required to enter the Rarewell. <a href="./">Back to Turbo Giggle</a></div></div></noscript>
   <script type="module" src="./stairwell-game.mjs"></script>
 </body>
 </html>

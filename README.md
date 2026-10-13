@@ -29,10 +29,10 @@ Move and mechanics references: [controls and mechanics](https://jujutsushenaniga
 
 Rendering uses an embedded Three.js WebGL2 renderer with WebGL fallback, instanced scenery, pooled particles, and adaptive resolution. The game has no external runtime asset requests. This is a solo browser adaptation with optional local bots; it does not connect to Roblox or reproduce the complete original game. Open the in-game controls panel for the full key guide.
 
-## DOORS · The Stairwell
+## D00RS: The Rarewell
 
-[Play The Stairwell](https://longlong737.github.io/turbo-giggle.github.io/stairwell.html)
+[Play D00RS: The Rarewell](https://longlong737.github.io/turbo-giggle.github.io/stairwell.html)
 
-A standalone first-person browser recreation of the DOORS Stairwell, with 100 switchback flights (Landings 100–200), concrete landings, side depots, Creak, Noise and its television, Meld, fire alarms and shelters, Stems, grinders, garage caches, and Cobbler’s exchange. Includes desktop, touch, and gamepad controls, equipment selection, an optional hazard-free explore mode, and a local best-landing record.
+D00RS: The Rarewell is a standalone first-person browser recreation of the DOORS Stairwell, with 100 switchback flights (Landings 100–200), concrete landings, side depots, Creak, Noise and its television, Meld, fire alarms and shelters, Stems, grinders, garage caches, and Cobbler’s exchange. Includes desktop, touch, and gamepad controls, equipment selection, an optional hazard-free explore mode, and a local best-landing record.
 
 Uses the site’s existing vendored Three.js modules with WebGPU and WebGL2 fallback. Models, textures, and audio are generated locally; there are no external runtime asset requests. This solo fan recreation does not connect to Roblox. Exact original asset, map, animation, and behavior parity is not verified. Original DOORS is by LSPLASH. Gameplay references: [Stairwell mechanics](https://doorsroblox.wiki/floors/stairwell/) and [the original game](https://www.roblox.com/games/6516141723/DOORS).
