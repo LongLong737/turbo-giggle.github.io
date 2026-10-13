@@ -7,3 +7,5 @@
 @media(pointer:coarse){.touch-actions{display:grid;grid-template-columns:48px 48px 65px;gap:8px}.touch-actions #touch-interact{grid-column:3;grid-row:1/3}.touch-actions button{font-size:9px}.touch-actions button:disabled{opacity:.25;cursor:default}}
 .primary span{position:relative;font-size:0;width:16px;height:16px;flex-shrink:0}.primary span::before{content:'';position:absolute;left:1px;top:8px;width:15px;height:1px;background:currentColor;transform:rotate(-45deg)}.primary span::after{content:'';position:absolute;right:1px;top:2px;width:8px;height:8px;border-top:1px solid currentColor;border-right:1px solid currentColor}
 @media(max-width:650px){.menu-foot{bottom:48px}}
+
+.performance-mode .overlay{backdrop-filter:none}.performance-mode .vignette{box-shadow:none;background:radial-gradient(ellipse,transparent 35%,#0009 100%)}

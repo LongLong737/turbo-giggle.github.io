@@ -31,7 +31,7 @@ export function makeRun({practice=false,shakelight=false,garageKey=false}={}) {
   return {player:{x:-2.5,y:0,z:-5.1},yaw:Math.PI,pitch:0,health:100,battery:100,stamina:100,
     lamp:true,practice,shakelight,garageKey,inventory:0,scrap:0,gold:0,time:0,best:100,
     floor:0,route:0,maxRoute:0,status:'playing',cause:'',cleared:new Set(),collected:new Set(),
-    opened:new Set(),alarm:null,creak:{s:-16,gaze:0,active:false,retreat:0},noise:null,
+    opened:new Set(),alarm:null,creak:{s:-16,gaze:0,active:false,retreat:0,aggression:0,unseen:0,hand:0,state:'dormant',cooldown:0,phase:0,speed:0,position:null},noise:null,
     noiseCleared:new Set(),stem:null,badges:new Set(),feedback:'',feedbackTime:0};
 }
 export function blockedByMeld(run,x,z,y) {
@@ -97,7 +97,92 @@ export function damage(run,amount,cause) {
   if(run.health===0){run.status='dead';run.cause=cause;}
 }
 export function isSheltered(run,n) {
-  const l=landing(n);return run.player.x*l.side>14.5&&Math.abs(run.player.z-l.z)<1.2&&Math.abs(run.player.y-l.y)<0.45;
+  return insideShelter(run.player,n);
+}
+function insideShelter(p,n) { const l=landing(n);return p.x*l.side>14.5&&Math.abs(p.z-l.z)<1.2&&Math.abs(p.y-l.y)<0.45; }
+const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
+function recordFootstep(actor,p) {
+  const last=actor.trail.at(-1);
+  if(!last||distance(last,p)>.035)actor.trail.push({x:p.x,y:p.y,z:p.z});
+}
+function followFootsteps(actor,amount,keepBehind=0) {
+  const trail=actor.trail;let cursor=actor.cursor||0,budget=Math.abs(amount);
+  // Walk each recorded segment, including corners and stairs. Never shortcut to the player.
+  for(let steps=0;budget>1e-6&&steps<128;steps++) {
+    const index=amount>=0?Math.floor(cursor):Math.ceil(cursor)-1;
+    if(index<0||index>=trail.length-1)break;
+    const length=distance(trail[index],trail[index+1]);
+    if(length<1e-6){cursor=amount>=0?index+1:index;continue;}
+    const remaining=length*(amount>=0?index+1-cursor:cursor-index);
+    if(budget<remaining){cursor+=(amount>=0?1:-1)*budget/length;budget=0;}
+    else{budget-=remaining;cursor=amount>=0?index+1:index;}
+  }
+  actor.cursor=cursor;
+  if(trail.length){const i=Math.floor(cursor),a=trail[i],b=trail[Math.min(i+1,trail.length-1)],t=cursor-i,p=actor.position||actor;
+    p.x=a.x+(b.x-a.x)*t;p.y=a.y+(b.y-a.y)*t;p.z=a.z+(b.z-a.z)*t;}
+  const remove=Math.floor(cursor)-keepBehind;
+  if(remove>64){actor.trail=trail.slice(remove);actor.cursor-=remove;}
+}
+export function creakPosition(run) { return run.creak.position||pathPoint(run.creak.s); }
+export function hasLineOfSight(from,to,run) {
+  const atPlane=(axis,value)=>{const d=to[axis]-from[axis];if(Math.abs(d)<1e-6)return null;const t=(value-from[axis])/d;
+    return t>.001&&t<.999?{x:from.x+(to.x-from.x)*t,y:from.y+(to.y-from.y)*t,z:from.z+(to.z-from.z)*t}:null;};
+  for(const x of [-4.8,4.8]){const p=atPlane('x',x);if(!p)continue;const n=Math.floor(p.y/RISE),l=landing(n);
+    if(!ROOM_FLOORS.includes(n)||Math.sign(x)!==l.side||Math.abs(p.z-l.z)>1.45||p.y-l.y>2.8)return false;}
+  for(let n=Math.max(0,Math.floor(Math.min(from.y,to.y)/RISE));n<=Math.min(FLIGHTS,Math.floor(Math.max(from.y,to.y)/RISE));n++){
+    const l=landing(n),p=atPlane('y',l.y);
+    if(p&&((Math.abs(p.x)<4.8&&Math.abs(p.z-l.z)<1.45)||(ROOM_FLOORS.includes(n)&&p.x*l.side>4.2&&p.x*l.side<17.6&&Math.abs(p.z-l.z)<3.25)))return false;
+    if(MELD_FLOORS.includes(n)&&!run.cleared.has(n)){const m=atPlane('x',0);if(m&&m.y>l.y&&m.y<l.y+2.9&&Math.abs(m.z-l.z)<1.55)return false;}
+  }
+  for(const n of ROOM_FLOORS){const l=landing(n),p=atPlane('x',10.5*l.side);
+    if(p&&p.y>l.y&&p.y<l.y+3.2&&p.z-l.z>.5&&p.z-l.z<3.25)return false;
+    if(MELD_FLOORS.includes(n))for(const dz of [-1.4,1.4]){const w=atPlane('z',l.z+dz);
+      if(w&&w.y>l.y&&w.y<l.y+3.1&&w.x*l.side>14.2&&w.x*l.side<17.6)return false;}
+  }
+  return true;
+}
+function retreatCreak(c,seconds) {c.state='retreating';c.retreat=Math.max(c.retreat,seconds);c.hand=0;c.unseen=0;c.cooldown=3;c.aggression=Math.min(c.aggression,.35);}
+function updateCreak(run,dt,lookDot) {
+  const c=run.creak;
+  if(!c.active)return;
+  if(!c.position){c.s=Math.max(0,run.route-18);c.position={...pathPoint(c.s)};c.trail=[];
+    const start=Math.max(0,c.s-12);for(let s=start;s<run.route;s+=.5)c.trail.push(pathPoint(s));
+    c.trail.push({...run.player});c.cursor=(c.s-start)/.5;c.state='watching';c.phase=1.4;}
+  recordFootstep(c,run.player);
+  const before={...c.position},range=distance(c.position,run.player),seen=lookDot>.78&&range<24;
+  if(range<.5){damage(run,100,'You walked into Creak. Keep your distance and never backtrack through it.');return;}
+  c.gaze=seen?c.gaze+dt:0;c.unseen=seen?0:c.unseen+dt;c.cooldown=Math.max(0,c.cooldown-dt);
+  c.aggression=clamp(c.aggression+dt*((seen?(c.gaze>.9?.38:.12):-.1)+(range<2?.28:0)),0,1);
+  if(c.aggression>.55&&!c.warned){message(run,'Creak is lowering its hands. Look away and keep your distance.');c.warned=true;}
+  if(c.aggression<.25)c.warned=false;
+  if(c.aggression>=1)c.state='aggressive';
+  if(c.state==='aggressive') {
+    followFootsteps(c,dt*7.5,32);
+    if(distance(c.position,run.player)<.85)damage(run,100,'Creak was provoked. Brief peeks are safe; prolonged staring or crowding it raises its aggression.');
+  }else if(c.state==='hand') {
+    if(seen){retreatCreak(c,6);run.badges.add('Paparazzi');message(run,'Creak recoils. Keep your peeks brief.');}
+    else{followFootsteps(c,Math.min(dt*5.2,Math.max(0,range-1.05)),32);c.hand-=dt;
+      if(c.hand<=0)damage(run,100,'Creak snuck up behind you. When its left hand reaches into view, turn around to scare it off.');}
+  }else if(c.retreat>0) {
+    c.state='retreating';c.hand=0;c.retreat=Math.max(0,c.retreat-dt);followFootsteps(c,-dt*2.4,32);
+    if(c.retreat===0){c.state='watching';c.unseen=0;c.phase=1.4;c.cooldown=3;}
+  }else if(seen) {
+    c.state='watching';followFootsteps(c,-dt*.8,32);
+    if(c.gaze>.24&&c.aggression<.5)retreatCreak(c,4);
+  }else if(c.cooldown>0) {
+    c.state='watching';
+  }else if(c.unseen>18) {
+    c.state='sneaking';followFootsteps(c,Math.min(dt*5,Math.max(0,range-1.1)),32);
+  }else {
+    c.phase-=dt;
+    if(c.phase<=0){c.state=c.state==='stalking'?'watching':'stalking';c.phase=c.state==='stalking'?2.4:1.4;}
+    if(c.state==='stalking')followFootsteps(c,Math.min(dt*.85,Math.max(0,range-1.1)),32);
+  }
+  c.s=routePosition(c.position);c.speed=dt>0?distance(before,c.position)/dt:0;
+  if(!seen&&c.retreat<=0&&c.cooldown===0&&c.state!=='aggressive'&&c.state!=='hand'&&distance(c.position,run.player)<1.3){
+    c.state='hand';c.hand=2.8;message(run,'A hand reaches around your shoulder. Turn around!',2.8);}
+  if(c.state!=='hand'&&distance(c.position,run.player)<.5)damage(run,100,'You walked into Creak. Keep your distance and never backtrack through it.');
+  if(run.route<c.s-1.3&&distance(c.position,run.player)<2.5)damage(run,100,'You crossed behind Creak. Continue upward instead of walking back through the stalker.');
 }
 export function interact(run,o) {
   if(!o||run.status!=='playing')return false;
@@ -112,9 +197,10 @@ export function interact(run,o) {
       run.scrap+=run.inventory;run.inventory=0;run.badges.add('Grindset');message(run,'Items ground into scrap. Cobbler buys scrap at Landing 199.');break;
     case 'alarm':
       if(run.alarm){message(run,'The fire system is already active.');break;}
-      run.alarm={n:o.n,remaining:15,phase:'countdown'};message(run,'FIRE ALARM · 15 seconds. Get inside the fire shelter!',5);break;
+      run.alarm={n:o.n,remaining:15,phase:'countdown'};retreatCreak(run.creak,18);message(run,'FIRE ALARM · 15 seconds. Get inside the fire shelter!',5);break;
     case 'shelter':message(run,'Stay inside the shelter until the sprinklers stop.');break;
-    case 'tv':if(run.noise?.n===o.n)run.noise=null;run.noiseCleared.add(o.n);run.badges.add('Plug and Play');run.creak.retreat=4;message(run,'The television tumbles down the stairs. Its Noise is gone.');break;
+    case 'tv':{const own=run.noise?.n===o.n;if(own)run.noise=null;run.noiseCleared.add(o.n);run.badges.add('Plug and Play');retreatCreak(run.creak,4);
+      message(run,own?'Noise fizzles out as its television breaks.':run.noise?'TV destroyed. The active Noise belongs to a different television.':'TV destroyed. It can no longer spawn Noise.');break;}
     case 'stem':
       if(run.stem){message(run,'You can only carry one Stem. Press Q to throw it.');break;}
       run.stem={n:o.n,cooked:false};run.collected.add(o.id);message(run,'Stem picked up. Q throws it; fire turns it into ceramic.');break;
@@ -141,37 +227,28 @@ export function updateRun(run,dt,{moving=false,sprinting=false,lookDot=0}={}) {
   run.best=Math.max(run.best,100+run.floor);
   run.stamina=clamp(run.stamina+(sprinting&&moving?-23:16)*dt,0,100);
   if(run.lamp)run.battery=Math.max(0,run.battery-(run.shakelight?.18:.055)*dt);
-  if(!run.practice&&run.maxRoute>6*12)run.creak.active=true;
-  if(run.creak.active) {
-    const c=run.creak;
-    if(c.s<0)c.s=run.route-32;
-    c.gaze=lookDot>0.82?c.gaze+dt:Math.max(0,c.gaze-dt*1.5);
-    if(c.retreat>0){c.s=Math.max(0,c.s-dt*8);c.retreat-=dt;}
-    else c.s=Math.min(run.maxRoute-1,c.s+dt*(c.gaze>3.2?3.4:lookDot>0.82?0.2:0.95));
-    const p=pathPoint(c.s);
-    if(Math.hypot(p.x-run.player.x,p.z-run.player.z)<1.15&&Math.abs(p.y-run.player.y)<1.6)damage(run,100,'Creak caught you. Keep moving, keep your distance, and check behind you briefly.');
-  }
+  if(!run.practice&&run.maxRoute>10*12)run.creak.active=true;
+  updateCreak(run,dt,lookDot);
   const n=run.floor,l=landing(n),inRoom=ROOM_FLOORS.includes(n)&&run.player.x*l.side>4.3&&Math.abs(run.player.y-l.y)<0.4;
   if(inRoom&&!MELD_FLOORS.includes(n)&&n>0&&n<99&&!run.noiseCleared.has(n)&&!run.noise) {
-    run.noise={n,x:5*l.side,y:l.y,z:l.z,age:0,trail:[]};message(run,'A television crackles. Noise copies your movement. Push the television.');
+    const start={x:5*l.side,y:l.y,z:l.z};
+    run.noise={n,...start,age:0,cursor:0,fastForward:0,trail:[start,{...run.player}]};message(run,'A television crackles. Noise follows your footsteps. Push its television.');
   }
   if(run.noise) {
-    const no=run.noise;no.age+=dt;no.trail.push({t:run.time,x:run.player.x,y:run.player.y,z:run.player.z});
-    while(no.trail.length>1&&no.trail[1].t<run.time-.65)no.trail.shift();
-    if(no.age>2&&moving) {
-      const past=no.trail[0],dx=past.x-no.x,dy=past.y-no.y,dz=past.z-no.z,len=Math.hypot(dx,dy,dz)||1;
-      no.x+=dx/len*dt*1.1;no.y+=dy/len*dt*1.1;no.z+=dz/len*dt*1.1;
-    }
-    if(no.age>2&&Math.hypot(no.x-run.player.x,no.z-run.player.z)<0.7&&Math.abs(no.y-run.player.y)<1)damage(run,25*dt,'Noise reached you. Stop moving and push its television down the stairs.');
+    const no=run.noise;no.age+=dt;recordFootstep(no,run.player);
+    if(no.age>2&&distance(no,run.player)>18&&!(no.fastForward>0)){no.fastForward=2.2;message(run,'Noise is fast-forwarding. Stay off your earlier path.');}
+    const fast=no.fastForward>0;no.fastForward=Math.max(0,(no.fastForward||0)-dt);
+    if(no.age>2&&(moving||fast))followFootsteps(no,dt*(fast?6.5:2.4));
+    if(no.age>2&&distance(no,run.player)<.65)damage(run,100,'You collided with Noise. It retraces your footsteps; avoid doubling back into it and destroy its own television.');
   }
   if(run.alarm) {
     const a=run.alarm;a.remaining-=dt;
     if(a.phase==='countdown'&&a.remaining<=0){a.phase='fire';a.remaining=6;message(run,'SPRINKLERS ACTIVE · stay in the fire shelter.',6);}
     if(a.phase==='fire') {
       if(Math.abs(run.player.y-a.n*RISE)<2&&!isSheltered(run,a.n))damage(run,32*dt,'The sprinklers caught you. Pull the alarm, then get inside the marked fire shelter within 15 seconds.');
-      if(run.noise?.n===a.n){run.noise=null;run.noiseCleared.add(a.n);}
+      if(run.noise&&Math.abs(run.noise.y-a.n*RISE)<2&&!insideShelter(run.noise,a.n)){run.noiseCleared.add(run.noise.n);run.noise=null;}
       if(run.stem?.thrown&&run.stem.n===a.n&&!run.stem.cooked){run.stem.cooked=true;run.inventory+=5;run.badges.add('Clay World');message(run,'Stem fired into ceramic. +5 items to grind.');}
     }
-    if(a.phase==='fire'&&a.remaining<=0){run.cleared.add(a.n);run.creak.retreat=8;run.alarm=null;message(run,'The Meld has burned away. The staircase is clear.');}
+    if(a.phase==='fire'&&a.remaining<=0){run.cleared.add(a.n);retreatCreak(run.creak,8);run.alarm=null;message(run,'The Meld has burned away. The staircase is clear.');}
   }
 }
