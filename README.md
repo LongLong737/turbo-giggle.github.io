@@ -42,3 +42,13 @@ Creak quietly stalks when unwatched, retreats from brief looks, and shows rising
 Chromebooks and other low-power devices default to Performance graphics with WebGL2, a smaller rendering resolution, fewer lights and particles, and a 30 FPS target. Graphics settings can increase detail.
 
 The Rarewell now has weathered concrete, painted utility walls, framed depot entrances, structural beams, detailed stair nosings, and varied electrical, pipe, ventilation, and maintenance landings. Cabinets and salvage crates have collision while preserving the crossing route. Entity, television, equipment, and exchange models have more detail. The flashlight has a wider beam and longer reach; shared textures and batched scenery retain Performance graphics support.
+
+## D00RS: The H0metell
+
+[Play D00RS: The H0metell](https://doors-hotel-after-hours.tendermochi2049.chatgpt.site)
+
+A standalone first-person browser adaptation of the DOORS Hotel, featuring a generated 100-door run, varied room layouts, keys, searchable drawers, wardrobe hiding, equipment, entity encounters, library and electrical-room puzzles, and an optional Explore mode. Includes desktop and touch controls.
+
+Uses custom Blender models and animations for doors, wardrobes, drawers, Seek, and Figure, alongside community furniture and an animated shopkeeper. This solo fan adaptation does not connect to Roblox or reproduce every original feature, entity, or asset. Original DOORS is by LSPLASH.
+
+Hosted separately as a private preview; access is currently restricted to the site owner.
