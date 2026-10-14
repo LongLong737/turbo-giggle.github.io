@@ -1,5 +1,7 @@
 import * as T from './vendor/three-r186/three.webgpu.js';
-import {FLIGHTS,RISE,STEPS,MELD_FLOORS,ROOM_FLOORS,clamp,seeded,landing,pathPoint,makeRun,objectsForFloor,movePlayer,message,interact,updateRun,creakPosition,hasLineOfSight} from './stairwell-world.mjs?v=stalker-2';
+import {FLIGHTS,RISE,STEPS,MELD_FLOORS,ROOM_FLOORS,clamp,seeded,landing,pathPoint,makeRun,objectsForFloor,movePlayer,message,interact,updateRun,creakPosition,hasLineOfSight,landingFixtures} from './stairwell-world.mjs?v=detail-3';
+import {createModelBuilder} from './stairwell-models.mjs?v=detail-3';
+import {surfaceTexture,createSceneryBuilder} from './stairwell-scenery.mjs?v=detail-3';
 
 const $=id=>document.getElementById(id),canvas=$('view');
 const screens=['menu','hud','pause','guide','settings','result','error'];
@@ -13,7 +15,8 @@ const keys=new Set(),signTextures=new Map(),chunks=new Map(),props=[],melds=[],g
 const boxGeometry=new T.BoxGeometry(1,1,1),sphereGeometry=new T.SphereGeometry(1,12,8),cylinderGeometry=new T.CylinderGeometry(1,1,1,8);
 const tempMatrix=new T.Matrix4(),tempPosition=new T.Vector3(),tempQuat=new T.Quaternion(),tempScale=new T.Vector3();
 const materials={};
-let torch,torchTarget,creakModel,noiseModel,stemModel,ambient,hemi,heldLight,fireEffects,gripModel,staticTexture,renderScale=1,slowFrames=0;
+const scenery=createSceneryBuilder({box,beam,sign,materials,landing,landingFixtures});
+let modelBuilder,torch,torchTarget,creakModel,noiseModel,stemModel,ambient,hemi,heldLight,fireEffects,gripModel,staticTexture,renderScale=1,slowFrames=0;
 const viewDirection=new T.Vector3(),creakVector=new T.Vector3();
 let record=100;
 try{record=Number(localStorage.getItem('turbo-stairwell-best'))||100;}catch{}
@@ -41,29 +44,41 @@ const audio={context:null,master:null,noise:null,start(){
     src.connect(filter);filter.connect(gain);gain.connect(this.master);src.start();this.noise=gain;
   }catch{}
 }};
-function concreteTexture(){
-  const c=document.createElement('canvas');c.width=c.height=256;const ctx=c.getContext('2d'),im=ctx.createImageData(256,256),rand=seeded(72);
-  for(let i=0;i<im.data.length;i+=4){const v=91+rand()*32;im.data[i]=v;im.data[i+1]=v+2;im.data[i+2]=v-7;im.data[i+3]=255;}
-  ctx.putImageData(im,0,0);ctx.strokeStyle='#363b3460';ctx.lineWidth=1;
-  for(let j=0;j<20;j++){ctx.beginPath();let x=rand()*256,y=rand()*256;ctx.moveTo(x,y);for(let k=0;k<6;k++){x+=rand()*12-6;y+=rand()*18;ctx.lineTo(x,y);}ctx.stroke();}
-  ctx.fillStyle='#343c3435';for(let j=0;j<70;j++)ctx.fillRect(rand()*256,rand()*256,rand()*12,rand()*3);
-  const tex=new T.CanvasTexture(c);tex.wrapS=tex.wrapT=T.RepeatWrapping;tex.colorSpace=T.SRGBColorSpace;tex.anisotropy=4;return tex;
-}
 function mat(color,extra={}){const {roughness,metalness,...rest}=extra;return new T.MeshLambertNodeMaterial({color,...rest});}
 function mesh(geometry,material,parent=environment){const m=new T.Mesh(geometry,material);parent.add(m);return m;}
 function box(x,y,z,w,h,d,material,parent=environment){const m=mesh(boxGeometry,material,parent);m.position.set(x,y,z);m.scale.set(w,h,d);return m;}
 function sphere(x,y,z,r,material,parent=environment){const m=mesh(sphereGeometry,material,parent);m.position.set(x,y,z);m.scale.setScalar(r);return m;}
 function beam(a,b,r,material,parent=environment){const aa=new T.Vector3(...a),bb=new T.Vector3(...b),delta=bb.clone().sub(aa);const m=mesh(cylinderGeometry,material,parent);m.position.copy(aa.add(bb).multiplyScalar(.5));m.scale.set(r,delta.length(),r);m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),delta.normalize());return m;}
 function batchGroup(group){
+  // Bake static transforms into one buffer per material, including mixed primitives.
+  // This saves draw calls as architecture gains detail; animated parts keep separate groups.
   const buckets=new Map();
   for(const child of [...group.children]){
     if(!child.isMesh||child.isInstancedMesh||child.userData.dynamic||![boxGeometry,cylinderGeometry,sphereGeometry].includes(child.geometry))continue;
-    const key=child.geometry.uuid+child.material.uuid;
+    const key=child.material.uuid;
     if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(child);
   }
+  const point=new T.Vector3(),normal=new T.Vector3(),normalMatrix=new T.Matrix3();
   for(const objects of buckets.values()){
-    if(objects.length<2)continue;const first=objects[0],batch=new T.InstancedMesh(first.geometry,first.material,objects.length);
-    objects.forEach((o,i)=>{o.updateMatrix();batch.setMatrixAt(i,o.matrix);group.remove(o);});batch.instanceMatrix.needsUpdate=true;group.add(batch);
+    if(objects.length<2)continue;
+    let vertices=0,indices=0;
+    for(const o of objects){vertices+=o.geometry.attributes.position.count;indices+=o.geometry.index.count;}
+    const positions=new Float32Array(vertices*3),normals=new Float32Array(vertices*3),uvs=new Float32Array(vertices*2),index=new Uint32Array(indices);
+    let vertexOffset=0,indexOffset=0;
+    for(const o of objects){
+      o.updateMatrix();normalMatrix.getNormalMatrix(o.matrix);
+      const g=o.geometry,p=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;
+      for(let i=0;i<p.count;i++){
+        point.fromBufferAttribute(p,i).applyMatrix4(o.matrix);point.toArray(positions,(vertexOffset+i)*3);
+        normal.fromBufferAttribute(n,i).applyMatrix3(normalMatrix).normalize();normal.toArray(normals,(vertexOffset+i)*3);
+        uvs[(vertexOffset+i)*2]=uv.getX(i);uvs[(vertexOffset+i)*2+1]=uv.getY(i);
+      }
+      for(let i=0;i<g.index.count;i++)index[indexOffset+i]=g.index.getX(i)+vertexOffset;
+      vertexOffset+=p.count;indexOffset+=g.index.count;group.remove(o);
+    }
+    const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.BufferAttribute(positions,3));
+    geometry.setAttribute('normal',new T.BufferAttribute(normals,3));geometry.setAttribute('uv',new T.BufferAttribute(uvs,2));geometry.setIndex(new T.BufferAttribute(index,1));
+    geometry.computeBoundingSphere();const batch=new T.Mesh(geometry,objects[0].material);batch.userData.bakedGeometry=true;group.add(batch);
   }
 }
 function sign(text,x,y,z,w=1.9,h=.8,rotation=0,color='#c8caba',bg='#292e27'){
@@ -77,7 +92,8 @@ function makeStaticTexture(){
   ctx.putImageData(pixels,0,0);const tex=new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;tex.repeat.set(.25,.5);tex.magFilter=T.NearestFilter;return tex;
 }
 function buildMaterials(){
-  const tex=concreteTexture();materials.wall=mat('#b3b8a5',{map:tex});materials.floor=mat('#858e78',{map:tex});materials.step=mat('#b2b4a4',{map:tex});
+  const tex=surfaceTexture(T,seeded);materials.wall=mat('#cccabc',{map:tex});materials.floor=mat('#b4b6a9',{map:surfaceTexture(T,seeded,'floor')});materials.step=mat('#bfc0ad',{map:tex});
+  materials.paint=mat('#b5baaa',{map:surfaceTexture(T,seeded,'paint')});
   materials.metal=mat('#4d5146',{metalness:.72,roughness:.55});materials.rust=mat('#694834',{metalness:.6});materials.pipe=mat('#774330',{metalness:.45});materials.dark=mat('#161b15');
   materials.yellow=mat('#b9a050');materials.red=mat('#a93722');materials.meld=mat('#743d38',{roughness:.46});materials.stone=mat('#b4b7a7',{map:tex});
   materials.glow=new T.MeshBasicNodeMaterial({color:'#d5dcc0'});materials.green=new T.MeshBasicNodeMaterial({color:'#afc383'});
@@ -89,22 +105,32 @@ function flight(n){
   const steps=new T.InstancedMesh(boxGeometry,materials.step,STEPS);environment.add(steps);
   for(let i=0;i<STEPS;i++){tempPosition.set(x,y+(i+.5)*RISE/STEPS,dir*(-4+(i+.5)*8/STEPS));tempScale.set(3.4,RISE/STEPS,8/STEPS);tempMatrix.compose(tempPosition,tempQuat.identity(),tempScale);steps.setMatrixAt(i,tempMatrix);}
   steps.instanceMatrix.needsUpdate=true;
+  const slab=box(x,y+RISE/2-.21,0,3.4,.24,Math.hypot(8,RISE),materials.wall);
+  slab.rotation.x=-dir*Math.atan2(RISE,8);
   for(const side of [-1,1]){
     const rx=x+side*1.65;
     beam([rx,y+.87,-dir*4],[rx,y+RISE+.87,dir*4],.045,materials.metal);
     beam([rx,y-.1,-dir*4],[rx,y+RISE-.1,dir*4],.085,materials.metal);
     for(let j=0;j<=4;j++){const z=dir*(-4+j*2),sy=y+j/4*RISE;beam([rx,sy,z],[rx,sy+.9,z],.035,materials.metal);}
   }
-  const l=landing(n);
+  // Thin nosings and stringers give the stairs a readable stepped profile.
+  for(let i=0;i<STEPS;i++)box(x,y+(i+1)*RISE/STEPS+.008,dir*(-4+i*8/STEPS+.035),3.36,.018,.07,materials.metal);
+  landingShell(n);
+}
+function landingShell(n){
+  const l=landing(n),y=l.y;
   box(0,y-.18,l.z,9.6,.36,2.85,materials.floor);
-  box(-4.8,y+RISE/2,0,.3,RISE,13.1,materials.wall);box(4.8,y+RISE/2,0,.3,RISE,13.1,materials.wall);
-  // Open the outer wall only where a landing has a side annex.
-  if(ROOM_FLOORS.includes(n)){
-    const openX=l.side*4.8;
-    const wall=environment.children[environment.children.length-(l.side<0?2:1)];wall.scale.z=7;wall.position.z=-Math.sign(l.z)*2.2;
-    box(openX,y+2.95,l.z,.3,.5,2.9,materials.wall);
+  for(const side of [-1,1]){
+    if(ROOM_FLOORS.includes(n)&&side===l.side){
+      const low=l.z-1.45,high=l.z+1.45;
+      box(side*4.8,y+1.6,(-6.55+low)/2,.3,3.2,low+6.55,materials.wall);
+      box(side*4.8,y+1.6,(high+6.55)/2,.3,3.2,6.55-high,materials.wall);
+      box(side*4.8,y+3,l.z,.3,.4,2.9,materials.wall);
+    }else box(side*4.8,y+1.6,0,.3,3.2,13.1,materials.wall);
   }
-  box(0,y+1.6,l.z>0?6.4:-6.4,9.8,3.2,.3,materials.wall);
+  // Both ends are enclosed at every height; alternating landings no longer leave holes.
+  for(const side of [-1,1])box(0,y+1.6,side*6.4,9.8,3.2,.3,materials.wall);
+  if(n===FLIGHTS)box(0,y+3.2,0,9.6,.25,13.1,materials.wall);
   const face=l.z>0?Math.PI:0;
   sign(String(100+n).padStart(3,'0'),l.side*-2.1,y+1.6,l.z>0?6.23:-6.23,1.8,.95,face,'#c3c4b1','#3b4137');
   sign('RAREWELL\n↑ CONTINUE',l.side*2.3,y+1.8,l.z>0?6.22:-6.22,1.5,.65,face,'#adc595','#293727');
@@ -112,7 +138,7 @@ function flight(n){
   beam([4.53,y,-5.8],[4.53,y+RISE,-5.8],.12,materials.pipe);beam([-4.53,y,5.8],[-4.53,y+RISE,5.8],.07,materials.metal);
   if(n%4===0){beam([4.53,y+2.4,-5.8],[-3.8,y+2.4,-5.8],.12,materials.pipe);box(3,y+2.4,-5.8,.15,.55,.15,materials.rust);}
   for(const xx of [-.72,.72]){beam([xx,y+.8,l.z>0?3.55:-3.55],[xx,y+.8,l.z>0?4.3:-4.3],.04,materials.metal);beam([xx,y,l.z>0?3.55:-3.55],[xx,y+.85,l.z>0?3.55:-3.55],.04,materials.metal);}
-  if(n%5===0)box(l.side*3.4,y+.3,l.z,.75,.6,.5,materials.dark);
+  scenery.landingDetails(n);
 }
 function room(n){
   const l=landing(n),sx=l.side,y=l.y,zc=l.z;
@@ -137,34 +163,21 @@ function room(n){
     for(let i=0;i<9;i++)beam([-.25,(i%3)*.6,(i/9-.5)*2.6],[.3,1.7,(i/9-.5)*2.6],.07,materials.meld,g);
     g.userData.n=n;batchGroup(g);melds.push(g);
   }
+  scenery.depotDetails(n);
   for(const o of objectsForFloor(n,run||makeRun()))makeProp(o);
 }
 function makeProp(o){
   const g=new T.Group();environment.add(g);g.position.set(o.x,o.y,o.z);g.userData.object=o;props.push(g);
-  const b=(x,y,z,w,h,d,m)=>box(x,y,z,w,h,d,m,g);
-  switch(o.kind){
-    case 'scrap':b(0,.27,0,.6,.14,.45,materials.rust).rotation.z=.12;b(.1,.38,.1,.28,.08,.5,materials.metal);break;
-    case 'battery':b(0,.35,0,.25,.5,.18,materials.dark);b(0,.48,-.1,.22,.09,.03,materials.yellow);break;
-    case 'bandage':b(0,.25,0,.42,.24,.32,materials.glow);b(0,.38,0,.25,.02,.07,materials.red);b(0,.38,0,.07,.02,.2,materials.red);break;
-    case 'grinder':b(0,.65,0,1.1,1.3,.9,materials.metal);b(0,1.3,0,.8,.1,.7,materials.dark);b(0,.35,-.48,.7,.4,.05,materials.yellow);b(.47,1.1,-.47,.1,.1,.06,materials.green);break;
-    case 'alarm':b(0,1.15,0,.26,.4,.12,materials.red);b(0,1.08,-.08,.17,.035,.07,materials.glow);break;
-    case 'tv':b(0,.55,0,.85,.7,.55,materials.dark);b(0,.6,-.29,.63,.45,.02,materials.tvStatic);for(const x of [-.28,.28])beam([x,.91,0],[x*2,1.2,.05],.015,materials.metal,g);break;
-    case 'stem':sphere(0,.32,0,.3,materials.meld,g);sphere(-.1,.39,-.26,.025,materials.dark,g);sphere(.1,.39,-.26,.025,materials.dark,g);break;
-    case 'garage':b(0,1.35,0,.16,2.7,1.8,materials.metal);for(let i=0;i<12;i++)b(-o.x/Math.abs(o.x)*.1,.1+i*.22,0,.04,.025,1.78,materials.dark);break;
-    case 'cobbler':
-      b(0,.75,0,2,1.5,.85,materials.rust);sphere(0,1.82,.2,.35,materials.stone,g);b(0,1.47,.2,.75,.5,.55,materials.dark);b(0,2.03,.2,.9,.15,.75,materials.dark);sphere(-.13,1.85,-.13,.04,materials.green,g);sphere(.13,1.85,-.13,.04,materials.green,g);break;
-    case 'shoplight':b(0,.35,0,.3,.7,.3,materials.yellow);break;
-    case 'shopheal':b(0,.3,0,.5,.4,.4,materials.glow);b(0,.51,0,.26,.02,.08,materials.red);break;
-    case 'exit':
-      b(0,1.5,0,.3,3,2.1,materials.metal);b(-Math.sign(o.x)*.2,1.4,.6,.07,.3,.09,materials.yellow);
-      sign('EXIT\nTHE MINES',o.x-Math.sign(o.x)*.19,o.y+2.6,o.z,1.8,.65,-Math.sign(o.x)*Math.PI/2,'#dbe5c3','#2c492e');break;
-    case 'startdoor':b(0,1.3,0,.15,2.6,2.2,materials.metal);break;
-    case 'shelter':g.visible=false;break;
-  }
+  modelBuilder.buildProp(o,g);
   batchGroup(g);
 }
 function disposeChunk(chunk){
-  chunk.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.owned){o.geometry.dispose();o.material.dispose();const key=o.userData.signKey,cached=signTextures.get(key);if(cached&&--cached.refs===0){cached.tex.dispose();signTextures.delete(key);}}});
+  chunk.traverse(o=>{
+    if(o.userData.bakedGeometry)o.geometry.dispose();
+    if(o.userData.owned){o.geometry.dispose();o.material.dispose();const key=o.userData.signKey,cached=signTextures.get(key);if(cached&&--cached.refs===0){cached.tex.dispose();signTextures.delete(key);}}
+    // r186 keeps per-object bindings until Object3D.dispose, even after geometry disposal.
+    o.dispose();
+  });
   environment.remove(chunk);
 }
 function rebuild(center,force=false){
@@ -174,7 +187,7 @@ function rebuild(center,force=false){
   const root=environment;
   for(let n=lo;n<=hi;n++)if(!chunks.has(n)){
     props.length=0;melds.length=0;gates.length=0;environment=new T.Group();
-    if(n<FLIGHTS)flight(n);else{const l=landing(n);box(0,l.y-.18,l.z,9.6,.36,2.85,materials.floor);}
+    if(n<FLIGHTS)flight(n);else landingShell(n);
     if(ROOM_FLOORS.includes(n))room(n);batchGroup(environment);
     environment.userData={props:[...props],melds:[...melds],gates:[...gates]};chunks.set(n,environment);root.add(environment);
   }
@@ -190,29 +203,10 @@ function configureLights(){
   document.body.classList.toggle('performance-mode',quality<=.7);
 }
 function entityModels(){
-  creakModel=new T.Group();scene.add(creakModel);
-  box(0,1.7,0,.57,.75,.42,materials.stone,creakModel);sphere(0,2.33,0,.28,materials.stone,creakModel);
-  for(const s of [-1,1]){
-    beam([s*.2,1.45,0],[s*.3,.72,.13],.075,materials.rust,creakModel);beam([s*.3,.72,.13],[s*.4,.08,0],.07,materials.rust,creakModel);
-    box(s*.4,.1,-.14,.2,.18,.48,materials.stone,creakModel);
-    const arm=new T.Group();arm.position.set(s*.3,1.95,0);creakModel.add(arm);arm.userData.side=s;
-    beam([0,0,0],[s*.1,-.6,.03],.055,materials.rust,arm);beam([s*.1,-.6,.03],[s*.15,-1.1,-.12],.05,materials.rust,arm);
-    for(let f=0;f<3;f++)beam([s*.15,-1.05,-.12],[s*(.13+f*.06),-1.4,-.25],.018,materials.rust,arm);
-    batchGroup(arm);creakArms.push(arm);
-  }
-  sphere(0,2.34,-.255,.09,materials.dark,creakModel);sphere(0,2.34,-.335,.035,materials.green,creakModel);
-  creakModel.visible=false;
-  batchGroup(creakModel);
-  noiseModel=new T.Group();scene.add(noiseModel);box(0,1.12,0,.45,1.3,.25,materials.noise,noiseModel);sphere(0,1.98,0,.26,materials.noise,noiseModel);
-  for(const s of [-1,1]){beam([s*.2,1.6,0],[s*.5,.7,0],.075,materials.noise,noiseModel);beam([s*.12,.5,0],[s*.2,0,0],.075,materials.noise,noiseModel);sphere(s*.09,2,-.24,.04,materials.green,noiseModel);}noiseModel.visible=false;
-  batchGroup(noiseModel);
-  stemModel=new T.Group();camera.add(stemModel);sphere(.3,-.28,-.6,.16,materials.meld,stemModel);sphere(.25,-.24,-.47,.018,materials.dark,stemModel);sphere(.35,-.24,-.47,.018,materials.dark,stemModel);stemModel.visible=false;
-  heldLight=new T.Group();camera.add(heldLight);beam([.24,-.3,-.35],[.29,-.29,-.63],.065,materials.dark,heldLight);box(.29,-.29,-.67,.14,.12,.05,materials.yellow,heldLight);
-  fireEffects=new T.InstancedMesh(sphereGeometry,new T.MeshBasicNodeMaterial({color:'#e4a45c',transparent:true,opacity:.65}),80);scene.add(fireEffects);fireEffects.visible=false;
-  gripModel=new T.Group();camera.add(gripModel);const handMaterial=new T.MeshBasicNodeMaterial({color:'#82917d'});box(0,0,0,.11,.12,.08,handMaterial,gripModel);
-  beam([-.35,-.15,-.08],[0,0,0],.025,materials.rust,gripModel);
-  for(let i=0;i<3;i++)beam([-.04+i*.04,.06,0],[-.05+i*.04,.15,.04],.018,handMaterial,gripModel);
-  batchGroup(gripModel);gripModel.visible=false;
+  modelBuilder=createModelBuilder({T,scene,camera,materials,box,sphere,beam,batchGroup,sign});
+  const models=modelBuilder.buildEntities();
+  ({creakModel,noiseModel,stemModel,heldLight,fireEffects,gripModel}=models);
+  creakArms.push(...models.creakArms);
 }
 async function init(){
   try{
@@ -222,10 +216,10 @@ async function init(){
     resize();renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
     await renderer.init();buildMaterials();
     hemi=new T.HemisphereLight('#b2c29b','#252820',.42);scene.add(hemi);ambient=new T.AmbientLight('#728062',.2);scene.add(ambient);
-    torch=new T.SpotLight('#fff0ce',16,24,.47,.55,1.6);torchTarget=new T.Object3D();scene.add(torch,torchTarget);torch.target=torchTarget;
+    torch=new T.SpotLight('#fff1d6',54,36,.67,.72,1.35);torchTarget=new T.Object3D();scene.add(torch,torchTarget);torch.target=torchTarget;
     entityModels();configureLights();rebuild(1);$('quality').value=String(quality);$('start').disabled=false;$('start').innerHTML='Enter the Rarewell <span>↗</span>';
     requestAnimationFrame(tick);window.stairwell={ready:true,state:()=>run?{status:run.status,floor:run.floor,health:run.health,player:{...run.player},scrap:run.scrap,alarm:run.alarm,practice:run.practice}:null};
-    if(new URLSearchParams(location.search).has('qa'))window.stairwell.qa={teleport:(n,x,z)=>{run.player={x:x??landing(n).side*7,y:n*RISE,z:z??landing(n).z};updateRun(run,0);rebuild(n);camera.position.set(run.player.x,run.player.y+1.65,run.player.z);updateHud();},look:(y,p=0)=>{yaw=y;pitch=p;camera.rotation.set(p,y,0);},object:kind=>objectsForFloor(run.floor,run).find(o=>o.kind===kind),use:kind=>{const o=objectsForFloor(run.floor,run).find(o=>o.kind===kind);if(o){run.player={x:o.x,y:o.y,z:o.z};interact(run,o);}},advance:(seconds)=>{for(let i=0;i<seconds*20;i++)updateRun(run,.05);updateHud();},graphics:()=>({backend:renderer.backend.isWebGLBackend?'webgl':'webgpu',quality,pixels:canvas.width*canvas.height,pointLights:landingLights.length,chunks:[...chunks].map(([n,g])=>({n,id:g.uuid})),signTextures:signTextures.size,frame,draws:renderer.info.render.drawCalls,noiseVisible:noiseModel.visible,noiseOpaque:!materials.noise.transparent,aggression:run?.creak.aggression,gripVisible:gripModel.visible}),raw:()=>run};
+    if(new URLSearchParams(location.search).has('qa'))window.stairwell.qa={teleport:(n,x,z)=>{run.player={x:x??landing(n).side*7,y:n*RISE,z:z??landing(n).z};updateRun(run,0);rebuild(n);camera.position.set(run.player.x,run.player.y+1.65,run.player.z);updateHud();},look:(y,p=0)=>{yaw=y;pitch=p;camera.rotation.set(p,y,0);},object:kind=>objectsForFloor(run.floor,run).find(o=>o.kind===kind),use:kind=>{const o=objectsForFloor(run.floor,run).find(o=>o.kind===kind);if(o){run.player={x:o.x,y:o.y,z:o.z};interact(run,o);}},advance:(seconds)=>{for(let i=0;i<seconds*20;i++)updateRun(run,.05);updateHud();},graphics:()=>({backend:renderer.backend.isWebGLBackend?'webgl':'webgpu',quality,pixels:canvas.width*canvas.height,pointLights:landingLights.length,chunks:[...chunks].map(([n,g])=>({n,id:g.uuid})),signTextures:signTextures.size,memory:{...renderer.info.memory},frame,draws:renderer.info.render.drawCalls,triangles:renderer.info.render.triangles,torch:{intensity:torch.intensity,distance:torch.distance,angle:torch.angle},noiseVisible:noiseModel.visible,noiseOpaque:!materials.noise.transparent,aggression:run?.creak.aggression,gripVisible:gripModel.visible}),raw:()=>run};
   }catch(e){show('error');$('error-text').textContent='The 3D renderer could not start. Enable WebGL2 or try an updated Chrome, Edge, Firefox, or Safari.';console.error(e);}
 }
 function lock(){if(matchMedia('(pointer:fine)').matches)canvas.requestPointerLock?.()?.catch?.(()=>{});}
@@ -299,7 +293,7 @@ function syncGameVisuals(dt){
   for(const g of gates){const a=run.alarm,gated=a?.n===g.userData.n&&a.phase==='fire';g.position.y+=(g.userData.y+(gated?1.45:4.35)-g.position.y)*Math.min(1,dt*4);}
   creakModel.visible=run.status==='playing'&&run.creak.active;
   if(creakModel.visible){const p=creakPosition(run);creakModel.position.set(p.x,p.y,p.z);creakModel.lookAt(run.player.x,p.y,run.player.z);creakModel.rotation.y+=Math.PI;creakModel.rotation.z=Math.sin(run.time*3)*.02;
-    for(const arm of creakArms){arm.rotation.z=arm.userData.side*2.9*(1-run.creak.aggression);arm.scale.y=.45+.55*run.creak.aggression;}}
+    for(const arm of creakArms){arm.rotation.z=-arm.userData.side*2.9*(1-run.creak.aggression);arm.scale.y=.45+.55*run.creak.aggression;}}
   const no=run.noise,range=no?Math.hypot(no.x-run.player.x,no.y-run.player.y,no.z-run.player.z):Infinity;
   // Keep the camera outside the static body, even in hazard-free explore mode.
   noiseModel.visible=run.status==='playing'&&!!no&&range>.85&&range<30;
@@ -332,7 +326,7 @@ function tick(now){
   if(playing&&paused&&!$('pause').hidden){const p=[...(navigator.getGamepads?.()||[])].find(Boolean);if(p){const pressed=p.buttons[9]?.pressed;if(pressed&&!gamepadButtons[9])resume();gamepadButtons=p.buttons.map(b=>b.pressed);}}
   if(!playing&&!run){camera.position.set(-3.3,2.35,-5.7);camera.lookAt(1.9,4.1,3.7);camera.position.x+=Math.sin(now*.00012)*.12;creakModel.visible=noiseModel.visible=stemModel.visible=heldLight.visible=gripModel.visible=false;}
   camera.getWorldDirection(viewDirection);torch.position.copy(camera.position);torchTarget.position.copy(camera.position).addScaledVector(viewDirection,8);
-  torch.intensity=playing?(run?.lamp&&run.battery>0?run.shakelight?12:20:0):6;
+  torch.intensity=playing?(run?.lamp&&run.battery>0?run.shakelight?40:54:0):14;
   ambient.intensity=.2*brightness;hemi.intensity=.56*brightness;renderer.toneMappingExposure=brightness;
   const level=run?run.floor:1;
   for(let i=0;i<landingLights.length;i++){const n=clamp(level+(i===0?0:i%2?Math.ceil(i/2):-i/2),0,FLIGHTS),l=landing(n),light=landingLights[i];

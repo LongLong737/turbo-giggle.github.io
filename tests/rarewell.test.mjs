@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {makeRun,updateRun,interact,objectsForFloor,pathPoint,landing,RISE,creakPosition,hasLineOfSight} from '../stairwell-world.mjs';
+import {makeRun,updateRun,interact,objectsForFloor,pathPoint,landing,RISE,creakPosition,hasLineOfSight,groundAt,movePlayer,landingFixtures,ROOM_FLOORS,FLIGHTS} from '../stairwell-world.mjs';
 const step=(r,seconds,input={})=>{for(let i=0;i<Math.round(seconds/.05);i++)updateRun(r,.05,input);};
 const spawnNoise=()=>{const r=makeRun({practice:true});r.player={x:7,y:8*RISE,z:landing(8).z};updateRun(r,.05);step(r,2.2);return r;};
 const spawnCreak=()=>{const r=makeRun();r.player=pathPoint(130);updateRun(r,.05);return r;};
@@ -61,4 +61,26 @@ test('Creak cannot react to a stare through a depot partition or a solid floor',
  assert.equal(hasLineOfSight({x:9,y,z:z+2},{x:12,y,z:z+2},r),false);
  assert.equal(hasLineOfSight({x:9,y,z:z-1},{x:12,y,z:z-1},r),true);
  assert.equal(hasLineOfSight({x:2,y:8*RISE+1,z},{x:2,y:8*RISE-1,z},r),false);
+});
+
+
+test('Landing fixtures block walking while every cross-landing route stays clear',()=>{
+ const r=makeRun({practice:true});r.cleared=new Set([12,28,44,61,78,92]);
+ for(let n=0;n<=FLIGHTS;n++){
+  const l=landing(n);
+  for(const fixture of landingFixtures(n))assert.equal(groundAt(fixture.x,fixture.z,l.y,r),null,`Fixture on ${n} has no collision`);
+  r.player={x:-2.5,y:l.y,z:l.z};
+  for(let i=0;i<50;i++)movePlayer(r,.1,0);
+  assert.ok(r.player.x>2.49,`Landing ${n} crossing is blocked`);
+ }
+});
+test('Annex entrances match the framed doorways on both sides of the staircase',()=>{
+ const r=makeRun({practice:true});
+ for(const n of ROOM_FLOORS){
+  const l=landing(n);
+  assert.equal(groundAt(l.side*4.85,l.z+1.8,l.y,r),null,`Can walk through doorway side wall at ${n}`);
+  r.player={x:l.side*4,y:l.y,z:l.z};
+  for(let i=0;i<20;i++)movePlayer(r,l.side*.1,0);
+  assert.ok(r.player.x*l.side>5.9,`Annex ${n} entrance is blocked`);
+ }
 });

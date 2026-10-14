@@ -6,6 +6,17 @@ export const ROOM_FLOORS = [...new Set([0, 8, 20, 36, 52, 68, 84, 99, 100, ...ME
 export const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 export function seeded(seed) { let n = seed >>> 0; return ()=>{n=(Math.imul(n,1664525)+1013904223)>>>0;return n/4294967296;}; }
 export function landing(n) { return {x:0,y:n*RISE,z:n%2 ? 4.8 : -4.8,side:n===0?-1:((n-1)%2===0?-1:1)}; }
+const fixtureCache=new Map();
+export function landingFixtures(n) {
+  if(fixtureCache.has(n))return fixtureCache.get(n);
+  let fixtures=[];
+  const l=landing(n),z=l.z+Math.sign(l.z)*1;
+  if(n>0&&n<99){
+    if(n%4===0)fixtures=[{type:'cabinet',x:3.5,z,w:.85,d:.42}];
+    if(n%4===2)fixtures=[{type:'crate',x:-3.5,z,w:1.05,d:.5}];
+  }
+  fixtureCache.set(n,fixtures);return fixtures;
+}
 export function pathPoint(s) {
   s=clamp(s,0,FLIGHTS*12);
   const n=Math.min(FLIGHTS-1,Math.floor(s/12)),t=s-n*12,even=n%2===0;
@@ -43,13 +54,15 @@ export function groundAt(x,z,currentY,run) {
   const b=Math.round(currentY/RISE),candidates=[];
   for(let n=Math.max(0,b-2);n<=Math.min(FLIGHTS,b+2);n++) {
     const l=landing(n);
-    if(Math.abs(x)<=4.55&&Math.abs(z-l.z)<1.25) candidates.push(n*RISE);
+    const fixture=landingFixtures(n).some(o=>Math.abs(x-o.x)<o.w/2+.15&&Math.abs(z-o.z)<o.d/2+.15);
+    if(Math.abs(x)<=4.55&&Math.abs(z-l.z)<1.25&&!fixture) candidates.push(n*RISE);
     if(ROOM_FLOORS.includes(n)&&x*l.side>=4.2&&x*l.side<=17.5&&Math.abs(z-l.z)<3.05) {
       // The fire shelter's two side walls and the room's partition have real collision.
       const sx=x*l.side,dz=z-l.z;
       const partition=Math.abs(sx-10.5)<0.35&&dz>0.5;
       const shelterWall=sx>14.2&&Math.abs(Math.abs(dz)-1.4)<0.22;
-      if(!partition&&!shelterWall)candidates.push(n*RISE);
+      const doorway=sx<5.05&&Math.abs(dz)>1.25;
+      if(!partition&&!shelterWall&&!doorway&&!fixture)candidates.push(n*RISE);
     }
     if(n<FLIGHTS) {
       const even=n%2===0,lane=even?-2.5:2.5;
