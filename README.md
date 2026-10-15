@@ -45,10 +45,10 @@ The Rarewell now has weathered concrete, painted utility walls, framed depot ent
 
 ## D00RS: The H0metell
 
-[Play D00RS: The H0metell](https://doors-hotel-after-hours.tendermochi2049.chatgpt.site)
+[Play D00RS: The H0metell](https://longlong737.github.io/turbo-giggle.github.io/hometell.html)
 
-A standalone first-person browser adaptation of the DOORS Hotel, featuring a generated 100-door run, varied room layouts, keys, searchable drawers, wardrobe hiding, equipment, entity encounters, library and electrical-room puzzles, and an optional Explore mode. Includes desktop and touch controls.
+A standalone first-person browser adaptation of the DOORS Hotel, featuring a generated 100-door run, varied room layouts, keys, searchable drawers, wardrobe hiding, equipment, entity encounters, library and electrical-room puzzles, and an optional Explore mode. Includes desktop and touch controls. The hotel pre-generates three rooms ahead, keeps four rooms behind the furthest opened door, and removes older rooms. Retained rooms preserve searched drawers, collected items, and solved puzzles; use the entrance door to revisit them.
 
 Uses custom Blender models and animations for doors, wardrobes, drawers, Seek, and Figure, alongside community furniture and an animated shopkeeper. This solo fan adaptation does not connect to Roblox or reproduce every original feature, entity, or asset. Original DOORS is by LSPLASH.
 
-Hosted separately as a private preview; access is currently restricted to the site owner.
+Play directly in your browser without an account or login. The standalone HTML file embeds its scripts, styles, models, and animations; no external runtime asset requests are needed.
